@@ -1,0 +1,170 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage[utf8]{inputenc}           % Codificação de entrada
+\usepackage[T1]{fontenc}              % Codificação de fonte
+\usepackage{lmodern}                  % Fonte moderna
+\usepackage{xcolor}                   % Gerenciamento de cores
+\usepackage{graphicx}                 % Inclusão de gráficos
+\usepackage{hyperref}                 % Hyperlinks
+\usepackage{amsmath}                  % Fórmulas matemáticas
+\usepackage{geometry}                 % Configuração das margens
+\usepackage{titling}                  % Customização de títulos
+\usepackage{float}                    % Controle de posição de figuras
+\usepackage{titlesec}                 % Customização dos títulos de seções
+\usepackage{fancyhdr}                 % Cabeçalho e rodapé customizados
+\usepackage[portuguese]{babel}        % Suporte ao português
+
+% Configuração da geometria da página
+\geometry{top=2cm, bottom=2cm, left=3cm, right=3cm}
+
+% Configuração do hyperref
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue
+}
+
+% Configuração do cabeçalho e rodapé usando fancyhdr
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Universidade Tecnológica Federal do Paraná}
+\fancyhead[R]{Oficina de Integração 1}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% Customização dos títulos das seções com titlesec
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{blue}}{\thesection}{1em}{}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{blue}}{\thesubsection}{1em}{}
+
+% Título, autores e data
+\title{\textbf{Minichess 4x4 com Machine Learning e Sistema CNC}}
+\author{%
+    \textbf{Fernando Frare Vieira} \\
+    fernandofrarevieira@alunos.utfpr.edu.br \\[1.5em]
+    \textbf{Gabriel Affonso Borges Caballero} \\
+    gabrielaffonso@alunos.utfpr.edu.br \\[1.5em]
+    \textbf{Marco Vieira Busetti} \\
+    marcovieirabusetti@alunos.utfpr.edu.br
+}
+\date{\today}
+
+\begin{document}
+
+\vspace{1em}
+
+\begin{center}
+    \Large\textbf{Minichess 4x4 com Machine Learning \\e Sistema CNC}
+\end{center}
+
+\vspace{1em}
+
+% Autores e contatos
+\begin{center}
+    \textbf{Fernando Frare Vieira} \\
+    fernandofrarevieira@alunos.utfpr.edu.br \\[1.5em]
+    \textbf{Gabriel Affonso Borges Caballero} \\
+    gabrielaffonso@alunos.utfpr.edu.br \\[1.5em]
+    \textbf{Marco Vieira Busetti} \\
+    marcovieirabusetti@alunos.utfpr.edu.br
+\end{center}
+
+\vspace{2em}
+
+\begin{center}
+    \today
+\end{center}
+
+\vspace{2em}
+
+\section{Introdução}
+O projeto "Minichess 4x4 com Machine Learning e Sistema CNC" foi desenvolvido com o propósito pedagógico de introduzir conceitos de machine learning para crianças. Utilizando um tabuleiro de xadrez simplificado (4x4), o sistema integra componentes de inteligência artificial e automação para demonstrar, de forma lúdica, como o aprendizado de máquina pode ser aplicado na prática. A solução proposta conta com um módulo de visão computacional, que realiza a captura do tabuleiro físico, e com um sistema CNC, que executa a movimentação automatizada das peças através da comunicação entre um computador e um Arduino.
+
+\section{Motivação}
+O principal objetivo deste projeto é educar crianças sobre os fundamentos do machine learning, uma área de extrema relevância na atualidade, por meio de uma experiência interativa e prática. Além disso, o Minichess 4x4 visa estimular o desenvolvimento do raciocínio lógico e da tomada de decisão, utilizando o xadrez simplificado como ferramenta de aprendizado. A integração dos componentes físicos (tabuleiro e sistema CNC) com a inteligência artificial oferece um ambiente dinâmico, onde o aluno interage diretamente com o jogo, consolidando os conceitos através da prática.
+
+\section{Descrição Geral}
+O Minichess 4x4 foi concebido para funcionar de forma integrada, utilizando um computador, uma câmera e um sistema CNC. Diferente de soluções que operam apenas por meio de interfaces gráficas, o jogo é realizado de modo físico: a criança posiciona as peças no tabuleiro real e o sistema, por meio da captura de imagem, interpreta a configuração atual e, em conjunto com a inteligência artificial, toma a decisão sobre o movimento. Posteriormente, o sistema CNC, controlado via comunicação serial com o Arduino, efetua a movimentação física das peças. Essa abordagem garante uma experiência completa e interativa, unindo teoria e prática.
+
+\section{Diagrama}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.2\textwidth]{DiagramaMiniChess.drawio-3_page-0001} % Atualize o caminho para a imagem correspondente
+    \caption{Diagrama do Sistema Minichess 4x4}
+    \label{fig:diagrama}
+\end{figure}
+
+\clearpage
+\vspace{1em}
+
+\section{Descrição do Software}
+O software deste projeto é responsável por:
+\begin{itemize}
+    \item Implementar a lógica do jogo e a inteligência artificial com machine learning, proporcionando a tomada de decisão baseada em aprendizado.
+    \item Capturar e processar imagens do tabuleiro físico utilizando técnicas de visão computacional, para identificar a posição das peças.
+    \item Gerenciar a comunicação entre o computador e o Arduino, que controla o sistema CNC, permitindo a movimentação automatizada das peças no tabuleiro.
+\end{itemize}
+
+\section{Descrição do Hardware}
+Para a realização do jogo físico, o sistema conta com os seguintes componentes de hardware:
+\begin{itemize}
+    \item \textbf{Computador com Câmera:} Utilizado para capturar imagens do tabuleiro e processar as informações necessárias para a tomada de decisão.
+    \item \textbf{Arduino:} Responsável por receber comandos do computador e controlar o sistema CNC.
+    \item \textbf{Sistema CNC:} Implementado para efetuar a movimentação física das peças no tabuleiro, operando de forma integrada à inteligência artificial.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{images/modelo_CNC_page-0001} % Atualize com o caminho da imagem do modelo 3D ou do esquemático do CNC
+    \caption{Referência do sistema CNC para movimentação física}
+    \label{fig:modelo_cnc}
+\end{figure}
+
+\section{Lista de Componentes}
+\begin{itemize}
+    \item \textbf{Software:}
+    \begin{itemize}
+        \item Python 3.8+ (com bibliotecas de machine learning, visão computacional e comunicação serial)
+    \end{itemize}
+    \item \textbf{Hardware:}
+    \begin{itemize}
+        \item Computador com câmera
+        \item Arduino
+        \item Sistema CNC para movimentação de peças
+        \item Cabos, conectores e demais componentes eletrônicos
+    \end{itemize}
+\end{itemize}
+
+\vspace{1em}
+
+\section{Cronograma}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{images/ScreenshotCronograma1.png} % Atualize com o caminho da imagem do cronograma
+    \caption{Diagrama de Gantt}
+    \label{fig:cronograma_gantt}
+\end{figure}
+
+\vspace{1em}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{images/Cronograma2.png} % Atualize com o caminho da segunda imagem do cronograma, se necessário
+    \caption{Cronograma do Projeto}
+    \label{fig:cronograma_projeto}
+\end{figure}
+
+\vspace{1em}
+
+\begin{thebibliography}{9}
+\bibitem{ref1} \href{https://arxiv.org/abs/2109.11434}{https://arxiv.org/abs/2109.11434}
+
+\bibitem{ref2} \href{https://arxiv.org/abs/2106.11034}{https://arxiv.org/abs/2106.11034}
+
+\bibitem{ref3} \href{https://journals.copmadrid.org/psed/art/psed2025a10}{https://journals.copmadrid.org/psed/art/psed2025a10}
+
+\bibitem{ref4} \href{https://pubmed.ncbi.nlm.nih.gov/28494023/}{https://pubmed.ncbi.nlm.nih.gov/28494023/}
+\end{thebibliography}
+
+\end{document}
