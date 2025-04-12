@@ -38,17 +38,9 @@
 \titleformat{\subsection}
   {\normalfont\large\bfseries\color{}}{\thesubsection}{1em}{}
 
-% Título, autores e data
-\title{\textbf{Minichess 4x4 com Machine Learning e Sistema CNC}}
-\author{%
-    \textbf{Fernando Frare Vieira} \\
-    fernandofrarevieira@alunos.utfpr.edu.br \\[1.5em]
-    \textbf{Gabriel Affonso Borges Caballero} \\
-    gabrielaffonso@alunos.utfpr.edu.br \\[1.5em]
-    \textbf{Marco Vieira Busetti} \\
-    marcovieirabusetti@alunos.utfpr.edu.br
-}
-\date{\today}
+
+\definecolor{blue}{RGB}{0,0,255} % Define a cor 'blue'
+\setlength{\headheight}{14.5pt}  % Ajusta a altura do cabeçalho
 
 \begin{document}
 
@@ -63,14 +55,17 @@
 % Autores e contatos
 \begin{center}
     \textbf{Fernando Frare Vieira} \\
-    fernandofrarevieira@alunos.utfpr.edu.br \\[1.5em]
+    \href{mailto:fernandofrarevieira@alunos.utfpr.edu.br}{fernandofrarevieira@alunos.utfpr.edu.br} \\
+    +55 41 9900-6940 \\[1.5em]
     \textbf{Gabriel Affonso Borges Caballero} \\
-    gabrielaffonso@alunos.utfpr.edu.br \\[1.5em]
+    \href{mailto:gabrielaffonso@alunos.utfpr.edu.br}{gabrielaffonso@alunos.utfpr.edu.br} \\
+    +55 41 9151-3335\\[1.5em]
     \textbf{Marco Vieira Busetti} \\
-    marcovieirabusetti@alunos.utfpr.edu.br
+    \href{mailto:marcovieirabusetti@alunos.utfpr.edu.br}{marcovieirabusetti@alunos.utfpr.edu.br} \\
+    +55 41 99798-4695
 \end{center}
 
-\vspace{2em}
+\vspace{1em}
 
 \begin{center}
     \today
@@ -92,7 +87,7 @@ A integração é realizada através de APIs desenvolvidas em Python, utilizando
 \section{Diagrama de Blocos}
 \begin{figure}[H]
     \centering
-    \includegraphics[width=1.2\textwidth]{DiagramaMiniChess.drawio-3_page-0001} % Atualize o caminho para a imagem correspondente
+    \includegraphics[width=1.2\textwidth]{diagrama.png} % Atualize o caminho para a imagem correspondente
     \caption{Diagrama de Blocos do Sistema Minichess}
     \label{fig:diagrama}
 \end{figure}
@@ -121,7 +116,7 @@ Para a realização do jogo físico, o sistema conta com os seguintes componente
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.5\textwidth]{images/modelo_CNC_page-0001} % Atualize com o caminho da imagem do modelo 3D ou do esquemático do CNC
+    \includegraphics[width=0.5\textwidth]{modelo-cnc.png} % Atualize com o caminho da imagem do modelo 3D ou do esquemático do CNC
     \caption{Referência do sistema CNC para movimentação física}
     \label{fig:modelo_cnc}
 \end{figure}
