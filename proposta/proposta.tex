@@ -38,9 +38,7 @@
 \titleformat{\subsection}
   {\normalfont\large\bfseries\color{}}{\thesubsection}{1em}{}
 
-
-\definecolor{blue}{RGB}{0,0,255} % Define a cor 'blue'
-\setlength{\headheight}{14.5pt}  % Ajusta a altura do cabeçalho
+\date{\today}
 
 \begin{document}
 
@@ -84,10 +82,17 @@ O Minichess 4x4 foi concebido para funcionar de forma integrada, utilizando um c
 
 A integração é realizada através de APIs desenvolvidas em Python, utilizando o framework Flask para comunicação entre os módulos de Visão Computacional, Inteligência Artificial e controle CNC. O sistema CNC é baseado em um manipulador cartesiano com três graus de liberdade (eixos X, Y e Z), utilizando motores de passo Nema 17 em configuração CoreXY para movimentação precisa no plano horizontal, e um servo motor SG90 para controle vertical do eletroímã responsável pela movimentação das peças.
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{images/minichess4x4.png} % Atualize com o caminho da imagem do modelo 3D ou do esquemático do CNC
+    \caption{Tabuleiro do Minichess 4x4}
+    \label{fig:modelo_cnc}
+\end{figure}
+
 \section{Diagrama de Blocos}
 \begin{figure}[H]
     \centering
-    \includegraphics[width=1.2\textwidth]{diagrama.png} % Atualize o caminho para a imagem correspondente
+    \includegraphics[width=1.2\textwidth]{DiagramaMiniChess.drawio-3_page-0001} % Atualize o caminho para a imagem correspondente
     \caption{Diagrama de Blocos do Sistema Minichess}
     \label{fig:diagrama}
 \end{figure}
@@ -98,7 +103,7 @@ A integração é realizada através de APIs desenvolvidas em Python, utilizando
 \section{Descrição do Software}
 O software deste projeto é responsável por:
 \begin{itemize}
-    \item Implementar a lógica do jogo e a Inteligência Artificial com Machine Learning, utilizando o algoritmo \textbf{Q-learning} (aprendizado por reforço) para tomada de decisão. O agente aprende a otimizar suas jogadas através de um processo iterativo, onde cada ação é associada a um valor (*Q-value*) que representa a recompensa esperada em longo prazo. O algoritmo equilibra exploração (testar novas jogadas) e exploração (usar conhecimento adquirido), ajustando-se dinamicamente conforme interage com o jogador. A função de recompensa é definida para priorizar vitórias, evitar derrotas e incentivar movimentos estratégicos no tabuleiro 4x4.
+    \item Implementar a lógica do jogo e a Inteligência Artificial com Machine Learning, utilizando o algoritmo \textbf{Q-learning} (aprendizado por reforço) para tomada de decisão. O agente aprende a otimizar suas jogadas através de um processo iterativo, onde cada ação é associada a um valor (\textbf{Q-value}) que representa a recompensa esperada em longo prazo. O algoritmo equilibra exploração (testar novas jogadas) e exploração (usar conhecimento adquirido), ajustando-se dinamicamente conforme interage com o jogador. A função de recompensa é definida para priorizar vitórias, evitar derrotas e incentivar movimentos estratégicos no tabuleiro 4x4.
     
     \item Capturar e processar imagens do tabuleiro físico utilizando a biblioteca OpenCV. As técnicas incluem detecção de cores (espaço HSV), filtragem de bordas (Canny) e comparação de contornos para identificar a posição das peças. A imagem é recortada para isolar o tabuleiro e evitar interferências externas.
     
@@ -116,7 +121,7 @@ Para a realização do jogo físico, o sistema conta com os seguintes componente
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.5\textwidth]{modelo-cnc.png} % Atualize com o caminho da imagem do modelo 3D ou do esquemático do CNC
+    \includegraphics[width=0.5\textwidth]{images/modelo_CNC_page-0001} % Atualize com o caminho da imagem do modelo 3D ou do esquemático do CNC
     \caption{Referência do sistema CNC para movimentação física}
     \label{fig:modelo_cnc}
 \end{figure}
