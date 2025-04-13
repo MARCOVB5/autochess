@@ -1,0 +1,13 @@
+# Diretórios __pycache__ do Python
+**/__pycache__/
+*.py[cod]
+
+# Arquivos de cache e temporários
+*.pyo
+*.pyd
+*.py.class
+
+# Ambiente virtual (venv, env, etc.)
+venv/
+env/
+.venv/
