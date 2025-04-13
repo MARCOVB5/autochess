@@ -61,15 +61,15 @@
 % Autores e contatos  
 \begin{center}  
     \textbf{Fernando Frare Vieira} \\
-	Engenharia de Computação UTFPR-CT \\
+	Engenharia de Computação UTFPR-CT - \textit{Turma S72}\\
     \href{mailto:fernandofrarevieira@alunos.utfpr.edu.br}{fernandofrarevieira@alunos.utfpr.edu.br} \\  
     +55 41 99900-6940 \\[1.5em]  
     \textbf{Gabriel Affonso Borges Caballero} \\ 
-	Engenharia de Computação UTFPR-CT \\
+	Engenharia de Computação UTFPR-CT - \textit{Turma S71}\\
     \href{mailto:gabrielaffonso@alunos.utfpr.edu.br}{gabrielaffonso@alunos.utfpr.edu.br} \\  
     +55 41 99151-3335\\[1.5em]  
     \textbf{Marco Vieira Busetti} \\ 
-	Engenharia Elétrica UTFPR-CT \\
+	Engenharia Elétrica UTFPR-CT - \textit{Turma S72}\\
     \href{mailto:marcovieirabusetti@alunos.utfpr.edu.br}{marcovieirabusetti@alunos.utfpr.edu.br} \\  
     +55 41 99798-4695  
 \end{center}  
@@ -86,24 +86,17 @@ O projeto "Autochess" \; foi desenvolvido com o propósito pedagógico de introd
 
 % --- SEÇÃO: MOTIVAÇÃO ---  
 \section{Motivação}  
-O principal objetivo deste projeto é educar crianças sobre os fundamentos do Machine Learning, uma área de extrema relevância na atualidade, por meio de uma experiência interativa e prática. Além disso, o Minichess 4x4 visa estimular o desenvolvimento do raciocínio lógico e da tomada de decisão, utilizando o xadrez simplificado como ferramenta de aprendizado. A integração dos componentes físicos (tabuleiro e sistema CNC) com a Inteligência Artificial oferece um ambiente dinâmico, onde o aluno interage diretamente com o jogo, consolidando os conceitos através da prática.  
+O principal objetivo deste projeto é educar crianças sobre os fundamentos do Machine Learning, uma área de extrema relevância na atualidade, por meio de uma experiência interativa e prática. Além disso, o Autochess visa estimular o desenvolvimento do raciocínio lógico e da tomada de decisão, utilizando o xadrez simplificado como ferramenta de aprendizado. A integração dos componentes físicos (tabuleiro e sistema CNC) com a Inteligência Artificial oferece um ambiente dinâmico, onde o aluno interage diretamente com o jogo, consolidando os conceitos através da prática.  
 
 % --- SEÇÃO: DESCRIÇÃO GERAL ---  
 \section{Descrição Geral}  
-O Minichess 4x4 foi concebido para funcionar de forma integrada, utilizando um computador, uma câmera e um sistema CNC. Diferente de soluções que operam apenas por meio de interfaces gráficas, o jogo é realizado de modo físico: a criança posiciona as peças no tabuleiro real e o sistema, por meio da captura de imagem, interpreta a configuração atual e, em conjunto com a Inteligência Artificial, toma a decisão sobre o movimento. Posteriormente, o sistema CNC, controlado via comunicação serial com o Arduino, efetua a movimentação física das peças. Essa abordagem garante uma experiência completa e interativa, unindo teoria e prática.  
+O Autochess foi concebido para funcionar de forma integrada, utilizando um computador, uma câmera e um sistema CNC. Diferente de soluções que operam apenas por meio de interfaces gráficas, o jogo é realizado de modo físico: a criança posiciona as peças no tabuleiro real e o sistema, por meio da captura de imagem, interpreta a configuração atual e, em conjunto com a Inteligência Artificial, toma a decisão sobre o movimento. Posteriormente, o sistema CNC, controlado via comunicação serial com o Arduino, efetua a movimentação física das peças. Essa abordagem garante uma experiência completa e interativa, unindo teoria e prática.  
 
-A integração é realizada através de comunicação serial direta entre os módulos de Visão Computacional, Inteligência Artificial e controle CNC. O sistema CNC é baseado em um manipulador cartesiano com três graus de liberdade (eixos X, Y e Z), utilizando motores de passo Nema 17 em configuração CoreXY para movimentação precisa no plano horizontal, e um servo motor SG90 para controle vertical do eletroímã responsável pela movimentação das peças.  
+A integração, como apresentada na Figura 1, é realizada através de comunicação serial direta entre os módulos de Visão Computacional, Inteligência Artificial e controle CNC. O sistema CNC é baseado em um manipulador cartesiano com três graus de liberdade (eixos X, Y e Z), utilizando motores de passo Nema 17 em configuração CoreXY para movimentação precisa no plano horizontal, e um servo motor SG90 para controle vertical do eletroímã responsável pela movimentação das peças.  
 
 % --- FIGURA: TABULEIRO ---  
-\begin{figure}[H]  
-    \centering  
-    \includegraphics[width=0.5\textwidth]{images/minichess4x4.png}   
-    \caption{Tabuleiro do Minichess 4x4}  
-    \label{fig:modelo_cnc}  
-\end{figure}  
 
-% --- SEÇÃO: DIAGRAMA DE BLOCOS ---  
-\section{Diagrama de Blocos}  
+
 \begin{figure}[H]  
     \centering  
     \includegraphics[width=1.0\textwidth]{images/diagrama.jpeg}   
@@ -111,7 +104,13 @@ A integração é realizada através de comunicação serial direta entre os mó
     \label{fig:diagrama}  
 \end{figure}  
 
-\clearpage  
+\begin{figure}[H]  
+    \centering  
+    \includegraphics[width=0.5\textwidth]{images/minichess4x4.png}   
+    \caption{Tabuleiro do Minichess 4x4}  
+    \label{fig:modelo_cnc}  
+\end{figure}  
+
 \vspace{1em}  
 
 % --- SEÇÃO: DESCRIÇÃO DO SOFTWARE ---  
@@ -177,7 +176,7 @@ A comunicação entre os módulos é realizada através de um fluxo sequencial u
 % --- SEÇÃO: CRONOGRAMA ---  
 \section{Cronograma}  
 
-\begin{table}[htbp]
+\begin{table}[H]
 \centering
 \caption{Cronograma}
 \label{tab:cronograma}
