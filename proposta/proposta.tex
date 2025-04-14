@@ -92,7 +92,7 @@ O principal objetivo deste projeto é educar crianças sobre os fundamentos do M
 \section{Descrição Geral}  
 O Autochess foi concebido para funcionar de forma integrada, utilizando um computador, uma câmera e um sistema CNC. Diferente de soluções que operam apenas por meio de interfaces gráficas, o jogo é realizado de modo físico: a criança posiciona as peças no tabuleiro real e o sistema, por meio da captura de imagem, interpreta a configuração atual e, em conjunto com a Inteligência Artificial, toma a decisão sobre o movimento. Posteriormente, o sistema CNC, controlado via comunicação serial com o Arduino, efetua a movimentação física das peças. Essa abordagem garante uma experiência completa e interativa, unindo teoria e prática.  
 
-A integração, como apresentada na Figura 1, é realizada através de comunicação serial direta entre os módulos de Visão Computacional, Inteligência Artificial e controle CNC. O sistema CNC é baseado em um manipulador cartesiano com três graus de liberdade (eixos X, Y e Z), utilizando motores de passo Nema 17 em configuração CoreXY para movimentação precisa no plano horizontal, e um servo motor SG90 para controle vertical do eletroímã responsável pela movimentação das peças.  
+A integração, como apresentada na Figura 1, é realizada através de comunicação serial direta entre os módulos de Visão Computacional, Inteligência Artificial e controle CNC. O sistema CNC é baseado em um manipulador cartesiano com três graus de liberdade (eixos X, Y e Z), utilizando motores de passo Nema 17 em configuração CoreXY para movimentação precisa no plano horizontal$^{[6]}$, e um servo motor SG90 para controle vertical do eletroímã responsável pela movimentação das peças.  
 
 % --- FIGURA: TABULEIRO ---  
 
@@ -237,8 +237,9 @@ MARCO 3 & - & - & 09/06/2025 \\
 \bibitem{ref3} \href{https://journals.copmadrid.org/psed/art/psed2025a10}{https://journals.copmadrid.org/psed/art/psed2025a10}  
 \bibitem{ref4} \href{https://pubmed.ncbi.nlm.nih.gov/28494023/}{https://pubmed.ncbi.nlm.nih.gov/28494023/}  
 \bibitem{ref5} MakerC. \textit{DrawingBot: Open Source Plotter}. Thingiverse, 2016. Disponível em: \url{https://www.thingiverse.com/thing:1517211}.  
-\bibitem{ref6} Conrado, A. \textit{Controle de Máquinas CNC com GRBL}. Revista de Engenharia, 2017.  
-\bibitem{ref7} Handson Technology. \textit{CNC Shield V3 Documentation}. 2021. Disponível em: \url{https://www.handsontec.com}.  
+\bibitem{ref6} \url{https://ieeexplore.ieee.org/document/10179542}
+\bibitem{ref7} Conrado, A. \textit{Controle de Máquinas CNC com GRBL}. Revista de Engenharia, 2017.  
+\bibitem{ref8} Handson Technology. \textit{CNC Shield V3 Documentation}. 2021. Disponível em: \url{https://www.handsontec.com}.  
 \end{thebibliography}  
 
 \end{document}  
