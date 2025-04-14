@@ -117,9 +117,9 @@ A integração, como apresentada na Figura 1, é realizada através de comunica�
 \section{Descrição do Software}  
 O software deste projeto é responsável por:  
 \begin{itemize}  
-    \item Implementar a lógica do jogo e a Inteligência Artificial com Machine Learning, utilizando o algoritmo \textbf{Q-learning} (aprendizado por reforço) para tomada de decisão. O agente aprende a otimizar suas jogadas através de um processo iterativo, onde cada ação é associada a um valor (\textbf{Q-value}) que representa a recompensa esperada em longo prazo. O algoritmo equilibra exploração (testar novas jogadas) e exploração (usar conhecimento adquirido), ajustando-se dinamicamente conforme interage com o jogador. A função de recompensa é definida para priorizar vitórias, evitar derrotas e incentivar movimentos estratégicos no tabuleiro 4x4.  
+    \item Implementar a lógica do jogo e a Inteligência Artificial com Machine Learning, utilizando o algoritmo \textbf{Q-learning} (aprendizado por reforço) para tomada de decisão. O agente aprende a otimizar suas jogadas através de um processo iterativo, onde cada ação é associada a um valor que representa a recompensa esperada em longo prazo. O algoritmo equilibra novas jogadas e jogadas anteriores, ajustando-se dinamicamente conforme interage com o jogador. A função de recompensa é definida para priorizar vitórias, evitar derrotas e incentivar movimentos estratégicos no tabuleiro 4x4.  
 
-    \item Capturar e processar imagens do tabuleiro físico utilizando a biblioteca OpenCV. As técnicas incluem detecção de cores (espaço HSV), filtragem de bordas (Canny) e comparação de contornos para identificar a posição das peças. A imagem é recortada para isolar o tabuleiro e evitar interferências externas.  
+    \item Capturar e processar imagens do tabuleiro físico utilizando a biblioteca OpenCV. As técnicas incluem detecção de cores, filtragem de bordas e comparação de contornos para identificar a posição das peças. A imagem é recortada para isolar o tabuleiro e evitar interferências externas.  
 
     \item Gerenciar a comunicação direta entre o computador e o Arduino via protocolo serial, utilizando a biblioteca PySerial para envio de comandos em G-Code. O fluxo é coordenado por um script único que integra a visão computacional, a IA e o controle do CNC, garantindo sincronização entre a decisão da jogada e a movimentação física das peças.  
 \end{itemize}  
@@ -129,8 +129,8 @@ O software deste projeto é responsável por:
 Para a realização do jogo físico, o sistema conta com os seguintes componentes de hardware:  
 \begin{itemize}  
     \item \textbf{Computador com Câmera:} Utilizado para capturar imagens do tabuleiro (resolução 1920x1080) e processar as informações necessárias para a tomada de decisão. A câmera é fixada em uma estrutura de suporte 3D impressa, posicionada verticalmente para garantir visibilidade total do tabuleiro.  
-    \item \textbf{Arduino UNO com CNC Shield V3:} Responsável por controlar os motores de passo (Nema 17) e o servo motor SG90. A CNC Shield utiliza drivers A4988 configurados em modo 1/4 de passo para equilibrar velocidade e precisão, e um relé para acionamento do eletroímã de 12V.  
-    \item \textbf{Sistema CNC CoreXY:} Composto por dois motores de passo para movimento no plano XY, seguindo o arranjo CoreXY para reduzir a inércia. O eixo Z é controlado por um servo motor, responsável por abaixar e levantar o eletroímã. A estrutura mecânica é baseada em perfis de MDF cortados a laser, com correias sincronizadas para transmissão de movimento.  
+    \item \textbf{Arduino UNO com CNC Shield V3:} Responsável por controlar os motores de passo (Nema 17) e o servo motor SG90. A CNC Shield utiliza drivers A4988 e um relé para acionamento do eletroímã de 12V.  
+    \item \textbf{Sistema CNC CoreXY:} Composto por dois motores de passo para movimento no plano XY, seguindo o arranjo CoreXY. O eixo Z é controlado por um servo motor, responsável por abaixar e levantar o eletroímã.  
     \item \textbf{Fonte de Alimentação:} Duas fontes de 12V 5A são utilizadas: uma para os motores de passo e ventoinhas de refrigeração, e outra exclusiva para o eletroímã.  
 	\item \textbf{Placa Universal:} Uma Placa Universal será utilizada para a soldagem de componentes eletrônicos auxiliares para a execução do projeto, tais como atuadores e sensores.
 \end{itemize}  
