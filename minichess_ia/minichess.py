@@ -374,6 +374,24 @@ class MiniChess:
         
         return None  # Nenhum rei capturado
     
+    def is_only_kings_remaining(self):
+        """
+        Verifica se restam apenas os dois reis no tabuleiro
+        """
+        kings_count = 0
+        other_pieces = 0
+        
+        for row in range(4):
+            for col in range(4):
+                piece = self.board[row][col]
+                if piece == 'K' or piece == 'k':
+                    kings_count += 1
+                elif piece != '.':
+                    other_pieces += 1
+        
+        # Retorna True se houver exatamente 2 reis e nenhuma outra peça
+        return kings_count == 2 and other_pieces == 0
+    
     def is_stalemate(self):
         """
         Verifica se o jogador atual está em afogamento (stalemate)
@@ -396,11 +414,15 @@ class MiniChess:
     
     def is_game_over(self):
         """
-        Verifica se o jogo acabou (xeque-mate, empate ou rei capturado)
+        Verifica se o jogo acabou (xeque-mate, empate, rei capturado ou apenas reis restantes)
         """
         # Verifica se algum rei foi capturado
         captured = self.is_king_captured()
         if captured:
+            return True
+        
+        # Verifica se restam apenas os dois reis
+        if self.is_only_kings_remaining():
             return True
         
         # Verifica xeque-mate ou empate
@@ -417,6 +439,10 @@ class MiniChess:
             return 1  # Brancas venceram
         elif captured == 'b':
             return -1  # Pretas venceram
+        
+        # Verifica se restam apenas os dois reis (empate)
+        if self.is_only_kings_remaining():
+            return 0
         
         if not self.is_game_over():
             return None

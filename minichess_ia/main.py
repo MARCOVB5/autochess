@@ -149,6 +149,7 @@ def animate_move(chess_game, from_pos, to_pos):
         
         # Desenha os elementos da interface
         draw_reset_button()
+        draw_new_game_button()
         display_ai_strength(ai_player)
         display_current_player(chess_game.current_player)
         
@@ -173,6 +174,17 @@ def draw_reset_button():
     
     return button_rect
 
+def draw_new_game_button():
+    button_rect = pygame.Rect(WIDTH - 180, HEIGHT - 110, 150, 40)
+    pygame.draw.rect(screen, (100, 255, 100), button_rect)
+    pygame.draw.rect(screen, (0, 0, 0), button_rect, 2)
+    
+    font = pygame.font.SysFont(None, 28)
+    text = font.render("Novo Jogo", True, (0, 0, 0))
+    screen.blit(text, (WIDTH - 160, HEIGHT - 100))
+    
+    return button_rect
+
 def show_game_over(message):
     overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 128))
@@ -188,16 +200,32 @@ def show_game_over(message):
     restart_rect = restart_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 50))
     screen.blit(restart_text, restart_rect)
     
+    # Adicionar o botão de novo jogo para visualização
+    new_game_button = draw_new_game_button()
+    
     pygame.display.flip()
     
     waiting = True
+    new_game_clicked = False
     while waiting:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
             if event.type == pygame.MOUSEBUTTONDOWN:
-                waiting = False
+                mouse_pos = pygame.mouse.get_pos()
+                # Verificar se o botão de novo jogo foi clicado
+                if new_game_button and new_game_button.collidepoint(mouse_pos):
+                    # Marca que queremos criar um novo jogo
+                    new_game_clicked = True
+                    waiting = False
+                else:
+                    # Qualquer outro clique fecha a tela de game over
+                    waiting = False
+    
+    # Se o botão de novo jogo foi clicado, criamos um novo jogo
+    # Do contrário, o loop principal já vai criar um novo jogo
+    return new_game_clicked
 
 def display_ai_strength(ai_player):
     font = pygame.font.SysFont(None, 24)
@@ -242,6 +270,7 @@ def main():
     valid_moves = []
     game_over = False
     reset_button = None
+    new_game_button = None
     
     # Loop principal
     clock = pygame.time.Clock()
@@ -254,7 +283,7 @@ def main():
                 pygame.quit()
                 sys.exit()
                 
-            if not game_over and event.type == pygame.MOUSEBUTTONDOWN:
+            if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # Botão esquerdo do mouse
                     mouse_pos = pygame.mouse.get_pos()
                     
@@ -264,8 +293,17 @@ def main():
                         print("IA resetada!")
                         continue
                     
-                    # Se é a vez do jogador (peças brancas)
-                    if chess_game.current_player == 'w':
+                    # Verificar se o botão de novo jogo foi clicado
+                    if new_game_button and new_game_button.collidepoint(mouse_pos):
+                        chess_game = MiniChess()
+                        selected_square = None
+                        valid_moves = []
+                        game_over = False
+                        print("Novo jogo iniciado!")
+                        continue
+                    
+                    # Se não está em game over e é a vez do jogador (peças brancas)
+                    if not game_over and chess_game.current_player == 'w':
                         clicked_square = screen_coords_to_board(*mouse_pos)
                         
                         if clicked_square:
@@ -302,27 +340,37 @@ def main():
                                         capturou = chess_game.is_king_captured()
                                         if capturou == 'w':
                                             ai_player.learn(chess_game, 1)  # Recompensa máxima para o jogador
-                                            show_game_over("Você venceu!")
+                                            new_game_clicked = show_game_over("Você venceu!")
                                         else:
                                             ai_player.learn(chess_game, 0)  # IA aprende com a vitória
-                                            show_game_over("IA venceu!")
+                                            new_game_clicked = show_game_over("IA venceu!")
                                         
                                         # Reiniciar o jogo
                                         chess_game = MiniChess()
-                                        game_over = False
+                                        if new_game_clicked:
+                                            selected_square = None
+                                            valid_moves = []
+                                            game_over = False
+                                        else:
+                                            game_over = False
                                     elif chess_game.is_game_over():
                                         game_over = True
                                         
                                         if chess_game.is_checkmate():
                                             ai_player.learn(chess_game, 0)  # IA aprende com a derrota
-                                            show_game_over("Você venceu!")
+                                            new_game_clicked = show_game_over("Você venceu!")
                                         else:
                                             ai_player.learn(chess_game, 0.5)  # Empate é neutro
-                                            show_game_over("Empate!")
+                                            new_game_clicked = show_game_over("Empate!")
                                         
                                         # Reiniciar o jogo
                                         chess_game = MiniChess()
-                                        game_over = False
+                                        if new_game_clicked:
+                                            selected_square = None
+                                            valid_moves = []
+                                            game_over = False
+                                        else:
+                                            game_over = False
                                     else:
                                         # Vez da IA
                                         print("Vez da IA...")
@@ -350,35 +398,50 @@ def main():
                                                 capturou = chess_game.is_king_captured()
                                                 if capturou == 'w':
                                                     ai_player.learn(chess_game, 1)  # Recompensa máxima para o jogador
-                                                    show_game_over("Você venceu!")
+                                                    new_game_clicked = show_game_over("Você venceu!")
                                                 else:
                                                     ai_player.learn(chess_game, 1)  # Recompensa máxima para a IA
-                                                    show_game_over("IA venceu!")
+                                                    new_game_clicked = show_game_over("IA venceu!")
                                                 
                                                 # Reiniciar o jogo
                                                 chess_game = MiniChess()
-                                                game_over = False
+                                                if new_game_clicked:
+                                                    selected_square = None
+                                                    valid_moves = []
+                                                    game_over = False
+                                                else:
+                                                    game_over = False
                                             elif chess_game.is_game_over():
                                                 game_over = True
                                                 
                                                 if chess_game.is_checkmate():
                                                     # IA ganhou
                                                     ai_player.learn(chess_game, 1)  # Recompensa máxima para a IA
-                                                    show_game_over("IA venceu!")
+                                                    new_game_clicked = show_game_over("IA venceu!")
                                                 else:
                                                     # Empate
                                                     ai_player.learn(chess_game, 0.5)  # Empate é neutro
-                                                    show_game_over("Empate!")
+                                                    new_game_clicked = show_game_over("Empate!")
                                                 
                                                 # Reiniciar o jogo
                                                 chess_game = MiniChess()
-                                                game_over = False
+                                                if new_game_clicked:
+                                                    selected_square = None
+                                                    valid_moves = []
+                                                    game_over = False
+                                                else:
+                                                    game_over = False
                                         else:
                                             if chess_game.is_check('b'):
                                                 ai_player.learn(chess_game, 0)  # IA aprende com a derrota
-                                                show_game_over("Você venceu!")
+                                                new_game_clicked = show_game_over("Você venceu!")
                                                 chess_game = MiniChess()
-                                                game_over = False
+                                                if new_game_clicked:
+                                                    selected_square = None
+                                                    valid_moves = []
+                                                    game_over = False
+                                                else:
+                                                    game_over = False
                                 else:
                                     # Cancelar seleção ou selecionar nova peça
                                     piece = chess_game.board[row][col]
@@ -413,8 +476,9 @@ def main():
         # Desenha as peças
         draw_pieces(chess_game.board)
         
-        # Desenha o botão de reset
+        # Desenha os botões
         reset_button = draw_reset_button()
+        new_game_button = draw_new_game_button()
         
         # Mostra informações da IA
         display_ai_strength(ai_player)
