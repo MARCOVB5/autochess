@@ -11,7 +11,7 @@ class MiniChessAI:
     Utiliza um modelo de aprendizado por reforço avançado (Q-learning).
     """
     
-    def __init__(self, learning_rate=0.2, discount_factor=0.95, exploration_rate=0.3):
+    def __init__(self, learning_rate=0.5, discount_factor=0.97, exploration_rate=0.4):
         self.learning_rate = learning_rate  # Taxa de aprendizado aumentada
         self.discount_factor = discount_factor  # Fator de desconto aumentado para valorizar mais recompensas futuras
         self.exploration_rate = exploration_rate  # Taxa de exploração
@@ -73,14 +73,33 @@ class MiniChessAI:
         for row in range(1, 3):
             for col in range(1, 3):
                 piece = game.board[row][col]
-                if piece != '.' and game.get_piece_color(piece) == 'b':
-                    score += 0.5  # Pequeno bônus para peças no centro
+                if piece != '.':
+                    if game.get_piece_color(piece) == 'b':  # Peça preta (IA)
+                        score += 0.8  # Bônus maior para peças no centro
+                    else:  # Peça branca (humano)
+                        score -= 0.8  # Penalidade para peças brancas no centro
+        
+        # Recompensa mobilidade - quanto mais movimentos possíveis, melhor
+        valid_black_moves = len(game.get_all_valid_moves('b'))
+        valid_white_moves = len(game.get_all_valid_moves('w'))
+        score += 0.2 * (valid_black_moves - valid_white_moves)
         
         # Penalização para rei em xeque (para ambos os lados)
         if game.is_check('b'):
-            score -= 3  # Penaliza a IA se estiver em xeque
+            score -= 5  # Penaliza mais a IA se estiver em xeque
         if game.is_check('w'):
-            score += 3  # Bonifica a IA se o oponente estiver em xeque
+            score += 5  # Bonifica mais a IA se o oponente estiver em xeque
+        
+        # Bônus para peões avançados (pretas avançam para linha 0)
+        for col in range(4):
+            for row in range(4):
+                piece = game.board[row][col]
+                if piece == 'p':  # Peão preto
+                    # Quanto mais próximo da linha 0, melhor
+                    score += (3 - row) * 0.7
+                elif piece == 'P':  # Peão branco
+                    # Quanto mais próximo da linha 3, melhor para as brancas
+                    score -= row * 0.7
         
         # Normalização do score para evitar valores extremos
         return np.tanh(score * 0.1)
@@ -251,6 +270,10 @@ class MiniChessAI:
             # Calcula recompensa intermediária como a diferença de avaliação
             move_reward = post_move_score - pre_move_score
             
+            # Amplifica recompensas nas primeiras partidas para acelerar o aprendizado
+            if self.games_played < 5:
+                move_reward *= 1.5  # Amplificação de 50% nas primeiras partidas
+            
             # Recompensas ou penalidades específicas
             dest_row, dest_col = destination
             captured_piece = None
@@ -270,6 +293,9 @@ class MiniChessAI:
         # Aplica a recompensa final para o último movimento
         if enhanced_rewards:
             enhanced_rewards[-1] = reward
+            # Amplifica a recompensa final nas primeiras partidas
+            if self.games_played < 10:
+                enhanced_rewards[-1] *= 1.5
         
         # Aplica o aprendizado para cada par estado-ação na história do jogo
         for i in range(len(self.game_history)):
@@ -302,6 +328,10 @@ class MiniChessAI:
             if move_reward < 0:
                 effective_learning_rate *= 1.5  # Aprende mais rápido de erros
             
+            # Aprendizado acelerado nas primeiras partidas
+            if self.games_played < 5:
+                effective_learning_rate *= 1.3
+            
             # Atualiza o valor Q
             self.q_values[state_key][action_key] = current_q + effective_learning_rate * (
                 move_reward + self.discount_factor * next_max_q - current_q
@@ -318,9 +348,9 @@ class MiniChessAI:
         Reduz a taxa de exploração à medida que a IA joga mais jogos.
         Mantém um mínimo de exploração para continuar descobrindo novas estratégias.
         """
-        min_exploration_rate = 0.05  # Mínimo mais baixo para explorar menos quando mais experiente
-        decay_factor = 0.02  # Decaimento mais rápido
-        self.exploration_rate = max(min_exploration_rate, 0.3 * np.exp(-decay_factor * self.games_played))
+        min_exploration_rate = 0.03  # Mínimo mais baixo para explorar menos quando mais experiente
+        decay_factor = 0.08  # Decaimento mais rápido
+        self.exploration_rate = max(min_exploration_rate, 0.4 * np.exp(-decay_factor * self.games_played))
         print(f"Nova taxa de exploração: {self.exploration_rate:.3f}")
     
     def save_model(self):
@@ -367,7 +397,7 @@ class MiniChessAI:
         self.q_values = {}
         self.game_history = []
         self.games_played = 0
-        self.exploration_rate = 0.3
+        self.exploration_rate = 0.4
         
         # Remove o arquivo do modelo antigo
         if os.path.exists('models/minichess_ai_model.pkl'):
@@ -383,13 +413,13 @@ class MiniChessAI:
         """
         Retorna uma descrição do nível de força da IA com base em quantos jogos ela já jogou.
         """
-        if self.games_played < 10:
+        if self.games_played < 3:
             return "Iniciante (aprendendo)"
-        elif self.games_played < 30:
+        elif self.games_played < 5:
             return "Básico"
-        elif self.games_played < 60:
+        elif self.games_played < 8:
             return "Intermediário"
-        elif self.games_played < 100:
+        elif self.games_played < 10:
             return "Avançado"
         else:
             return f"Mestre ({self.games_played} jogos)" 

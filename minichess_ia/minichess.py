@@ -469,4 +469,22 @@ class MiniChess:
         # Adiciona o jogador atual (1 para brancas, -1 para pretas)
         state.append(1 if self.current_player == 'w' else -1)
         
-        return np.array(state) 
+        return np.array(state)
+    
+    def get_all_valid_moves(self, player):
+        """
+        Retorna todos os movimentos válidos para um jogador específico.
+        Utilizado pela IA para análise de mobilidade.
+        """
+        valid_moves = []
+        
+        for row in range(4):
+            for col in range(4):
+                piece = self.board[row][col]
+                if piece != '.' and self.get_piece_color(piece) == player:
+                    position = (row, col)
+                    moves = self.get_valid_moves(position)
+                    for move in moves:
+                        valid_moves.append((position, move))
+        
+        return valid_moves 
