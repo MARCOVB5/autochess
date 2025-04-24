@@ -1,0 +1,72 @@
+Diagrama de Conexões CNC Xadrez
+-------------------------------
+
++------------------------+
+|                        |
+|      FONTE 12V 5A      |
+|                        |
++--+------------------+--+
+   |                  |
+   | 12V              | GND
+   |                  |
+   |                  |
++--+--+----------------+-+
+|     |                | |
+|  +--+--+             | |
+|  |     |   CNC SHIELD| |
+|  | 12V | GND         | |
+|  +--+--+-------------+-+
+|     |  |             |
+|     |  |             |
+|     |  |             |
++-----+--+-------------+---+
+|     |  |                 |     +-------------+     +--------------+
+|  +--+--+----+            |     |             |     |              |
+|  | ARDUINO   |           +-----+ MOTOR EIXO X+-----+ CHAVE FIM X  |
+|  |           |           |     |             |     |              |
+|  |        D2 +-----------+     +-------------+     +--------------+
+|  |        D3 +-----------+
+|  |        D4 +-----------+     +-------------+     +--------------+
+|  |        D5 +-----------+     |             |     |              |
+|  |        D6 +-----------+-----+ MOTOR EIXO Y+-----+ CHAVE FIM Y  |
+|  |        D7 +-----------+     |             |     |              |
+|  |           |           |     +-------------+     +--------------+
+|  |        D8 +-----------+
+|  |           |           |     +-------------+     +--------------+
+|  |        D9 +-----------+     |             |     |              |
+|  |       D10 +-----------+-----+ MOTOR EIXO Z+-----+ CHAVE FIM Z  |
+|  |       D11 +-----------+     |             |     |              |
+|  |           |           |     +-------------+     +--------------+
+|  |           |           |
+|  |           |           |     +---------------------------------+
+|  |           |           |     |                                 |
+|  |        D8 +-----------+-----+  MOSFET/RELÉ  +--------+       |
+|  |           |           |     |               |        |       |
+|  +-----------+           |     |               |     ELETROÍMÃ  |
+|                          |     |               |        |       |
++--------------------------+     +---------------+--------+-------+
+
+
+Conexões das Chaves de Fim de Curso:
+-----------------------------------
+- Pino X_MIN_PIN (D9) -> Chave Fim X (um terminal) -> GND (outro terminal)
+- Pino Y_MIN_PIN (D10) -> Chave Fim Y (um terminal) -> GND (outro terminal)
+- Pino Z_MIN_PIN (D11) -> Chave Fim Z (um terminal) -> GND (outro terminal)
+
+Conexão do Eletroímã:
+-------------------
+- Pino ELECTROMAGNET_PIN (D8) -> Gate do MOSFET (ou entrada do Relé)
+- Dreno do MOSFET (ou contato do Relé) -> Eletroímã -> 12V
+- Fonte do MOSFET -> GND
+
+Motores de Passo:
+---------------
+- Cada motor de passo NEMA 17 tem 4 fios, conectados aos terminais correspondentes na CNC Shield
+- Pinos de STEP e DIR dos eixos X, Y e Z configurados na CNC Shield
+
+Observações:
+-----------
+1. Motores são controlados pela CNC Shield, que usa os pinos STEP e DIR do Arduino
+2. Microstepping é configurado através dos jumpers na CNC Shield
+3. Ajuste a corrente dos drivers antes de ligar os motores
+4. A fonte 12V deve ter capacidade para alimentar todos os componentes 
