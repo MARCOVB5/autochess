@@ -11,11 +11,10 @@ class MiniChessAI:
     Utiliza um modelo de aprendizado por reforço avançado (Q-learning).
     """
     
-    def __init__(self, learning_rate=0.3, discount_factor=0.9, exploration_rate=0.9):
-        # Taxas mais altas para aprender mais rapidamente no início
-        self.learning_rate = learning_rate  
-        self.discount_factor = discount_factor  
-        self.exploration_rate = exploration_rate  # Taxa de exploração inicial alta (90%)
+    def __init__(self, learning_rate=0.2, discount_factor=0.95, exploration_rate=0.3):
+        self.learning_rate = learning_rate  # Taxa de aprendizado aumentada
+        self.discount_factor = discount_factor  # Fator de desconto aumentado para valorizar mais recompensas futuras
+        self.exploration_rate = exploration_rate  # Taxa de exploração
         
         # Dicionário para armazenar valores Q: state -> {action -> value}
         self.q_values = {}
@@ -34,14 +33,8 @@ class MiniChessAI:
             'k': 100, 'K': 100   # Rei (valor alto para priorizar sua proteção)
         }
         
-        # Fator de burrice aleatória (quanto maior, mais aleatória é a IA)
-        self.random_mistake_factor = 0.8
-        
         # Carregar modelo se existir
         self.load_model()
-        
-        # Ajustar exploration_rate e random_mistake_factor com base nos jogos jogados
-        self.adjust_learning_parameters()
     
     def get_state_key(self, game_state):
         """
@@ -61,47 +54,33 @@ class MiniChessAI:
     def evaluate_board(self, game):
         """
         Avalia a posição do tabuleiro para o jogador atual (heurística).
-        A sofisticação da avaliação aumenta com a experiência.
+        Retorna um valor positivo se for bom para as pretas (IA) e negativo se for bom para as brancas.
         """
         score = 0
         
-        # Nível de sofisticação da avaliação com base na experiência
-        sophistication = min(1.0, self.games_played / 50)
-        
-        # Contagem básica de material (sempre presente)
+        # Contagem de material
         for row in range(4):
             for col in range(4):
                 piece = game.board[row][col]
                 if piece != '.':
-                    # Aplicamos um "erro de avaliação" proporcional à inexperiência
                     value = self.piece_values.get(piece, 0)
-                    
-                    # A IA iniciante às vezes não valoriza corretamente as peças
-                    if random.random() < self.random_mistake_factor:
-                        value = value * random.uniform(0.5, 1.5)
-                    
                     if game.get_piece_color(piece) == 'b':  # Peça preta (IA)
                         score += value
                     else:  # Peça branca (humano)
                         score -= value
         
-        # Avaliações mais sofisticadas surgem gradualmente com a experiência
-        if sophistication > 0.2:
-            # Bônus para posições centrais (para peças pretas)
-            central_bonus = 0.5 * sophistication
-            for row in range(1, 3):
-                for col in range(1, 3):
-                    piece = game.board[row][col]
-                    if piece != '.' and game.get_piece_color(piece) == 'b':
-                        score += central_bonus
+        # Bônus para posições centrais (para peças pretas)
+        for row in range(1, 3):
+            for col in range(1, 3):
+                piece = game.board[row][col]
+                if piece != '.' and game.get_piece_color(piece) == 'b':
+                    score += 0.5  # Pequeno bônus para peças no centro
         
-        if sophistication > 0.5:
-            # Penalização para rei em xeque (para ambos os lados)
-            check_awareness = 3.0 * sophistication
-            if game.is_check('b'):
-                score -= check_awareness  # Penaliza a IA se estiver em xeque
-            if game.is_check('w'):
-                score += check_awareness  # Bonifica a IA se o oponente estiver em xeque
+        # Penalização para rei em xeque (para ambos os lados)
+        if game.is_check('b'):
+            score -= 3  # Penaliza a IA se estiver em xeque
+        if game.is_check('w'):
+            score += 3  # Bonifica a IA se o oponente estiver em xeque
         
         # Normalização do score para evitar valores extremos
         return np.tanh(score * 0.1)
@@ -132,16 +111,8 @@ class MiniChessAI:
     
     def is_move_safe(self, game, move):
         """
-        Verifica se um movimento é seguro, com análise proporcional à experiência.
-        Uma IA inexperiente não consegue prever tão bem os perigos.
+        Verifica se um movimento é seguro (não resulta na captura imediata de uma peça valiosa).
         """
-        # A profundidade da análise de segurança depende da experiência
-        safety_awareness = min(1.0, self.games_played / 40)
-        
-        # IAs inexperientes às vezes ignoram a segurança completamente
-        if random.random() > safety_awareness:
-            return True  # Falsa sensação de segurança
-        
         # Simula o movimento
         game_after_move = self.simulate_move(game, move)
         
@@ -154,23 +125,22 @@ class MiniChessAI:
             if game_after_opponent.is_king_captured() == 'b' or game_after_opponent.is_checkmate():
                 return False
             
-            # IAs mais avançadas também se preocupam com a perda de peças valiosas
-            if safety_awareness > 0.3:
-                origin, dest = opponent_move
-                dest_row, dest_col = dest
-                captured_piece = game_after_move.board[dest_row][dest_col]
-                
-                if captured_piece != '.' and game_after_move.get_piece_color(captured_piece) == 'b':
-                    piece_value = self.piece_values.get(captured_piece, 0)
-                    if piece_value > 1:  # Se for mais valioso que um peão
-                        return False
+            # Se uma peça valiosa for capturada na resposta
+            origin, dest = opponent_move
+            dest_row, dest_col = dest
+            captured_piece = game_after_move.board[dest_row][dest_col]
+            
+            if captured_piece != '.' and game_after_move.get_piece_color(captured_piece) == 'b':
+                piece_value = self.piece_values.get(captured_piece, 0)
+                if piece_value > 1:  # Se for mais valioso que um peão
+                    return False
         
         return True
     
     def get_move(self, game):
         """
         Decide o próximo movimento com base no aprendizado atual e avaliação heurística.
-        A qualidade da decisão aumenta com a experiência.
+        Usa a estratégia epsilon-greedy com preferência por movimentos seguros.
         """
         valid_actions = self.get_valid_actions(game)
         
@@ -178,16 +148,12 @@ class MiniChessAI:
             print("Nenhuma ação válida encontrada para a IA")
             return None
         
-        # Chance de considerar a segurança aumenta com a experiência
-        safety_consideration_chance = min(0.8, self.games_played / 50)
+        # Filtra por movimentos seguros se possível
+        safe_actions = [move for move in valid_actions if self.is_move_safe(game, move)]
         
-        # Filtrar por movimentos seguros conforme a experiência aumenta
-        if random.random() < safety_consideration_chance:
-            safe_actions = [move for move in valid_actions if self.is_move_safe(game, move)]
-            if safe_actions:
-                actions_to_consider = safe_actions
-            else:
-                actions_to_consider = valid_actions
+        # Se houver movimentos seguros, prefere-os, mas mantém alguns movimentos não seguros para exploração
+        if safe_actions and random.random() > 0.2:  # 80% de chance de escolher apenas entre movimentos seguros
+            actions_to_consider = safe_actions
         else:
             actions_to_consider = valid_actions
         
@@ -198,13 +164,12 @@ class MiniChessAI:
         if state_key not in self.q_values:
             self.q_values[state_key] = {}
         
-        # A IA inexperiente explora mais e comete mais erros aleatórios
-        # Fase de exploração: escolhe ação aleatória com probabilidade exploration_rate
+        # Fase de exploração: escolhe ação aleatória com probabilidade epsilon
         if random.random() < self.exploration_rate:
             chosen_action = random.choice(actions_to_consider)
             print(f"IA explorando: Escolhendo ação {chosen_action}")
         else:
-            # Fase de exploitação: escolhe a melhor ação conhecida, com potenciais erros
+            # Fase de exploitação: escolhe a melhor ação conhecida
             best_value = float('-inf')
             best_actions = []
             
@@ -220,27 +185,18 @@ class MiniChessAI:
                 
                 value = self.q_values[state_key][action_key]
                 
-                # IAs mais experientes consideram fatores adicionais
-                consideration_level = min(1.0, self.games_played / 50)
+                # Bônus para capturas e movimentos que dão xeque
+                origin, dest = action
+                dest_row, dest_col = dest
+                if game.board[dest_row][dest_col] != '.':  # É uma captura
+                    captured_piece = game.board[dest_row][dest_col]
+                    capture_value = self.piece_values.get(captured_piece, 0) * 0.1
+                    value += capture_value  # Bônus para capturas proporcionais ao valor da peça
                 
-                if consideration_level > 0.3:
-                    # Bônus para capturas e movimentos que dão xeque
-                    origin, dest = action
-                    dest_row, dest_col = dest
-                    if game.board[dest_row][dest_col] != '.':  # É uma captura
-                        captured_piece = game.board[dest_row][dest_col]
-                        capture_value = self.piece_values.get(captured_piece, 0) * 0.1 * consideration_level
-                        value += capture_value
-                
-                if consideration_level > 0.6:
-                    # Verifica se o movimento dá xeque
-                    game_after_move = self.simulate_move(game, action)
-                    if game_after_move.is_check('w'):
-                        value += 0.5 * consideration_level
-                
-                # IA inexperiente pode fazer erros na avaliação
-                if random.random() < self.random_mistake_factor:
-                    value = value * random.uniform(0.5, 1.5)
+                # Verifica se o movimento dá xeque
+                game_after_move = self.simulate_move(game, action)
+                if game_after_move.is_check('w'):
+                    value += 0.5  # Bônus para movimentos que dão xeque
                 
                 if value > best_value:
                     best_value = value
@@ -268,8 +224,8 @@ class MiniChessAI:
         self.games_played += 1
         print(f"IA aprendendo do jogo {self.games_played} com recompensa final {reward}")
         
-        # Atualiza os parâmetros de aprendizado (taxas de exploração, erro, etc.)
-        self.adjust_learning_parameters()
+        # Atualiza a taxa de exploração (diminui com o tempo)
+        self.adjust_exploration_rate()
         
         # Adiciona recompensas intermediárias baseadas em heurísticas
         enhanced_rewards = []
@@ -357,29 +313,15 @@ class MiniChessAI:
         # Salva o modelo após aprender
         self.save_model()
     
-    def adjust_learning_parameters(self):
+    def adjust_exploration_rate(self):
         """
-        Ajusta todos os parâmetros de aprendizado de acordo com a experiência da IA.
+        Reduz a taxa de exploração à medida que a IA joga mais jogos.
+        Mantém um mínimo de exploração para continuar descobrindo novas estratégias.
         """
-        # Ajusta a taxa de exploração (diminui com o tempo, mas não muito rápido)
-        min_exploration_rate = 0.05  # Mínimo para continuar explorando um pouco
-        decay_factor = 0.01  # Decaimento mais lento para uma progressão mais gradual
-        self.exploration_rate = max(min_exploration_rate, 0.9 * np.exp(-decay_factor * self.games_played))
-        
-        # Ajusta o fator de "erro aleatório" (burrice)
-        min_mistake_factor = 0.02  # Sempre haverá uma pequena chance de erro
-        mistake_decay = 0.015  # Decaimento um pouco mais rápido que a exploração
-        self.random_mistake_factor = max(min_mistake_factor, 0.8 * np.exp(-mistake_decay * self.games_played))
-        
-        # Ajusta a taxa de aprendizado (diminui gradualmente para estabilizar o aprendizado)
-        min_learning_rate = 0.1
-        lr_decay = 0.005  # Decaimento mais lento
-        self.learning_rate = max(min_learning_rate, 0.3 * np.exp(-lr_decay * self.games_played))
-        
-        print(f"Parâmetros de aprendizado atualizados:")
-        print(f"- Taxa de exploração: {self.exploration_rate:.3f}")
-        print(f"- Fator de erro aleatório: {self.random_mistake_factor:.3f}")
-        print(f"- Taxa de aprendizado: {self.learning_rate:.3f}")
+        min_exploration_rate = 0.05  # Mínimo mais baixo para explorar menos quando mais experiente
+        decay_factor = 0.02  # Decaimento mais rápido
+        self.exploration_rate = max(min_exploration_rate, 0.3 * np.exp(-decay_factor * self.games_played))
+        print(f"Nova taxa de exploração: {self.exploration_rate:.3f}")
     
     def save_model(self):
         """
@@ -409,6 +351,9 @@ class MiniChessAI:
                 self.q_values = model_data['q_values']
                 self.games_played = model_data['games_played']
                 
+                # Ajusta a taxa de exploração com base nos jogos jogados
+                self.adjust_exploration_rate()
+                
                 print(f"Modelo da IA carregado com sucesso! Jogos jogados: {self.games_played}")
             else:
                 print("Nenhum modelo encontrado. Iniciando com um novo modelo.")
@@ -422,9 +367,7 @@ class MiniChessAI:
         self.q_values = {}
         self.game_history = []
         self.games_played = 0
-        self.exploration_rate = 0.9
-        self.random_mistake_factor = 0.8
-        self.learning_rate = 0.3
+        self.exploration_rate = 0.3
         
         # Remove o arquivo do modelo antigo
         if os.path.exists('models/minichess_ai_model.pkl'):
@@ -439,29 +382,14 @@ class MiniChessAI:
     def get_strength_description(self):
         """
         Retorna uma descrição do nível de força da IA com base em quantos jogos ela já jogou.
-        Agora com gradações mais suaves.
         """
-        if self.games_played == 0:
-            return "Completo iniciante (sem experiência)"
-        elif self.games_played < 5:
-            return "Muito iniciante"
-        elif self.games_played < 10:
-            return "Iniciante"
-        elif self.games_played < 20:
-            return "Básico (aprendendo)"
+        if self.games_played < 10:
+            return "Iniciante (aprendendo)"
         elif self.games_played < 30:
-            return "Básico (em evolução)"
-        elif self.games_played < 45:
-            return "Intermediário (iniciante)"
+            return "Básico"
         elif self.games_played < 60:
             return "Intermediário"
-        elif self.games_played < 80:
-            return "Intermediário avançado"
         elif self.games_played < 100:
             return "Avançado"
-        elif self.games_played < 130:
-            return "Muito avançado"
-        elif self.games_played < 170:
-            return "Especialista"
         else:
             return f"Mestre ({self.games_played} jogos)" 
