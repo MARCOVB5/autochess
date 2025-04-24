@@ -164,7 +164,6 @@ class MiniChessAI:
         valid_actions = self.get_valid_actions(game)
         
         if not valid_actions:
-            print("Nenhuma ação válida encontrada para a IA")
             return None
         
         # Filtra por movimentos seguros se possível
@@ -186,7 +185,6 @@ class MiniChessAI:
         # Fase de exploração: escolhe ação aleatória com probabilidade epsilon
         if random.random() < self.exploration_rate:
             chosen_action = random.choice(actions_to_consider)
-            print(f"IA explorando: Escolhendo ação {chosen_action}")
         else:
             # Fase de exploitação: escolhe a melhor ação conhecida
             best_value = float('-inf')
@@ -224,7 +222,6 @@ class MiniChessAI:
                     best_actions.append(action)
             
             chosen_action = random.choice(best_actions)  # Desempate aleatório
-            print(f"IA aproveitando conhecimento: Escolhendo melhor ação {chosen_action} com valor Q {best_value}")
         
         # Registra o estado e a ação para aprendizado posterior
         self.game_history.append((state_key, self.get_action_key(chosen_action)))
@@ -241,7 +238,6 @@ class MiniChessAI:
         
         # Incrementa o contador de jogos
         self.games_played += 1
-        print(f"IA aprendendo do jogo {self.games_played} com recompensa final {reward}")
         
         # Atualiza a taxa de exploração (diminui com o tempo)
         self.adjust_exploration_rate()
@@ -351,7 +347,6 @@ class MiniChessAI:
         min_exploration_rate = 0.03  # Mínimo mais baixo para explorar menos quando mais experiente
         decay_factor = 0.08  # Decaimento mais rápido
         self.exploration_rate = max(min_exploration_rate, 0.4 * np.exp(-decay_factor * self.games_played))
-        print(f"Nova taxa de exploração: {self.exploration_rate:.3f}")
     
     def save_model(self):
         """
@@ -365,7 +360,6 @@ class MiniChessAI:
         try:
             with open('models/minichess_ai_model.pkl', 'wb') as f:
                 pickle.dump(model_data, f)
-            print(f"Modelo da IA salvo com sucesso! Jogos jogados: {self.games_played}")
         except Exception as e:
             print(f"Erro ao salvar o modelo: {e}")
     
@@ -383,10 +377,8 @@ class MiniChessAI:
                 
                 # Ajusta a taxa de exploração com base nos jogos jogados
                 self.adjust_exploration_rate()
-                
-                print(f"Modelo da IA carregado com sucesso! Jogos jogados: {self.games_played}")
             else:
-                print("Nenhum modelo encontrado. Iniciando com um novo modelo.")
+                print("Iniciando com um novo modelo.")
         except Exception as e:
             print(f"Erro ao carregar o modelo: {e}")
     
@@ -403,7 +395,6 @@ class MiniChessAI:
         if os.path.exists('models/minichess_ai_model.pkl'):
             try:
                 os.remove('models/minichess_ai_model.pkl')
-                print("Modelo anterior removido.")
             except Exception as e:
                 print(f"Erro ao remover o modelo anterior: {e}")
         

@@ -301,11 +301,9 @@ def main():
                                         game_over = True
                                         capturou = chess_game.is_king_captured()
                                         if capturou == 'w':
-                                            print("O jogador capturou o rei da IA!")
                                             ai_player.learn(chess_game, 1)  # Recompensa máxima para o jogador
                                             show_game_over("Você venceu!")
                                         else:
-                                            print("A IA capturou o rei do jogador!")
                                             ai_player.learn(chess_game, 0)  # IA aprende com a vitória
                                             show_game_over("IA venceu!")
                                         
@@ -316,11 +314,9 @@ def main():
                                         game_over = True
                                         
                                         if chess_game.is_checkmate():
-                                            print("O jogador deu xeque-mate na IA!")
                                             ai_player.learn(chess_game, 0)  # IA aprende com a derrota
                                             show_game_over("Você venceu!")
                                         else:
-                                            print("Empate (afogamento)!")
                                             ai_player.learn(chess_game, 0.5)  # Empate é neutro
                                             show_game_over("Empate!")
                                         
@@ -353,11 +349,9 @@ def main():
                                                 game_over = True
                                                 capturou = chess_game.is_king_captured()
                                                 if capturou == 'w':
-                                                    print("O jogador capturou o rei da IA!")
                                                     ai_player.learn(chess_game, 1)  # Recompensa máxima para o jogador
                                                     show_game_over("Você venceu!")
                                                 else:
-                                                    print("A IA capturou o rei do jogador!")
                                                     ai_player.learn(chess_game, 1)  # Recompensa máxima para a IA
                                                     show_game_over("IA venceu!")
                                                 
@@ -369,12 +363,10 @@ def main():
                                                 
                                                 if chess_game.is_checkmate():
                                                     # IA ganhou
-                                                    print("A IA deu xeque-mate no jogador!")
                                                     ai_player.learn(chess_game, 1)  # Recompensa máxima para a IA
                                                     show_game_over("IA venceu!")
                                                 else:
                                                     # Empate
-                                                    print("Empate (afogamento)!")
                                                     ai_player.learn(chess_game, 0.5)  # Empate é neutro
                                                     show_game_over("Empate!")
                                                 
@@ -382,9 +374,7 @@ def main():
                                                 chess_game = MiniChess()
                                                 game_over = False
                                         else:
-                                            print("IA não encontrou movimento válido")
                                             if chess_game.is_check('b'):
-                                                print("IA está em xeque-mate!")
                                                 ai_player.learn(chess_game, 0)  # IA aprende com a derrota
                                                 show_game_over("Você venceu!")
                                                 chess_game = MiniChess()

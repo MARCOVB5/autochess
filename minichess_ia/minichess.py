@@ -172,8 +172,6 @@ class MiniChess:
         # Verifica se o movimento é válido
         valid_moves = self.get_valid_moves((orig_row, orig_col))
         if (dest_row, dest_col) not in valid_moves:
-            print(f"Movimento inválido: ({orig_row},{orig_col}) -> ({dest_row},{dest_col})")
-            print(f"Movimentos válidos para esta peça: {valid_moves}")
             return False
         
         # Captura a peça no destino, se houver
@@ -232,7 +230,6 @@ class MiniChess:
                     if piece.lower() == 'p':
                         direction = -1 if opponent == 'w' else 1
                         if row + direction == king_row and (col - 1 == king_col or col + 1 == king_col):
-                            print(f"Xeque por peão! Peão em ({row},{col}) atacando rei em ({king_row},{king_col})")
                             return True
                     
                     # Torre
@@ -245,7 +242,6 @@ class MiniChess:
                                     blocked = True
                                     break
                             if not blocked:
-                                print(f"Xeque horizontal! Torre em ({row},{col}) atacando rei em ({king_row},{king_col})")
                                 return True
                         
                         # Mesma coluna
@@ -256,7 +252,6 @@ class MiniChess:
                                     blocked = True
                                     break
                             if not blocked:
-                                print(f"Xeque vertical! Torre em ({row},{col}) atacando rei em ({king_row},{king_col})")
                                 return True
                     
                     # Rainha
@@ -269,7 +264,6 @@ class MiniChess:
                                     blocked = True
                                     break
                             if not blocked:
-                                print(f"Xeque horizontal! Rainha em ({row},{col}) atacando rei em ({king_row},{king_col})")
                                 return True
                         
                         elif col == king_col:  # Mesma coluna
@@ -279,7 +273,6 @@ class MiniChess:
                                     blocked = True
                                     break
                             if not blocked:
-                                print(f"Xeque vertical! Rainha em ({row},{col}) atacando rei em ({king_row},{king_col})")
                                 return True
                         
                         # Movimentos diagonais
@@ -306,13 +299,11 @@ class MiniChess:
                             
                             # Se chegou até aqui sem bloqueios, é xeque
                             if not blocked:
-                                print(f"Xeque diagonal! Rainha em ({row},{col}) atacando rei em ({king_row},{king_col})")
                                 return True
                     
                     # Rei (adjacente)
                     elif piece.lower() == 'k':
                         if abs(row - king_row) <= 1 and abs(col - king_col) <= 1:
-                            print(f"Xeque pelo rei! Rei em ({row},{col}) atacando rei em ({king_row},{king_col})")
                             return True
         
         return False
@@ -357,7 +348,6 @@ class MiniChess:
                         return False
         
         # Se nenhum movimento é possível enquanto estiver em xeque, é xeque-mate
-        print(f"Xeque-mate confirmado para o jogador {player}")
         return True
     
     def is_king_captured(self):
@@ -378,10 +368,8 @@ class MiniChess:
         
         # Se algum rei não foi encontrado, ele foi capturado
         if not white_king_found:
-            print("O rei branco foi capturado! Vitória das pretas.")
             return 'b'  # Pretas venceram
         elif not black_king_found:
-            print("O rei preto foi capturado! Vitória das brancas.")
             return 'w'  # Brancas venceram
         
         return None  # Nenhum rei capturado
