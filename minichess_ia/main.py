@@ -1,11 +1,16 @@
 import pygame
 import sys
-import numpy as np
-import pickle
 import os
 import time
-from minichess import MiniChess
-from ai_player import MiniChessAI
+import random
+
+# Importação adaptativa dependendo de como o script é executado
+try:
+    from .minichess import MiniChess
+    from .ai_player import MiniChessAI
+except ImportError:
+    from minichess import MiniChess
+    from ai_player import MiniChessAI
 
 # Inicialização do Pygame
 pygame.init()
@@ -17,6 +22,7 @@ LIGHT_SQUARE = (240, 217, 181)
 DARK_SQUARE = (181, 136, 99)
 HIGHLIGHT = (247, 247, 105)
 GREEN = (0, 200, 0)
+RED = (255, 100, 100)
 
 # Configurações da tela
 WIDTH, HEIGHT = 600, 600
@@ -24,15 +30,14 @@ BOARD_SIZE = 400
 SQUARE_SIZE = BOARD_SIZE // 4
 PIECE_SIZE = SQUARE_SIZE - 10
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Mini Chess 4x4 com IA de Aprendizado")
+pygame.display.set_caption("Mini Chess com IA Q-Learning")
 
 # Configurações de animação
-ANIMATION_SPEED = 10  # Quanto maior, mais rápida a animação
-ANIMATION_FRAMES = 10  # Número de frames para animar o movimento
+ANIMATION_SPEED = 8
+ANIMATION_FRAMES = 6
 
 # Carregar e redimensionar imagens das peças
 piece_images = {}
-# Mapeamento de peças para nomes de arquivos
 piece_filenames = {
     'p': 'black-pawn.png',
     'r': 'black-rook.png',
@@ -45,16 +50,38 @@ piece_filenames = {
 }
 
 def load_piece_images():
+    """Carrega as imagens das peças."""
+    # Lista de possíveis caminhos para as imagens
+    possible_paths = [
+        "assets",
+        "../minichess/assets",
+        "/home/magna/autochess/minichess_ia2/assets",
+        "/home/magna/autochess/minichess/assets"
+    ]
+    
+    assets_dir = None
+    # Tenta encontrar o diretório de assets
+    for path in possible_paths:
+        if os.path.exists(path):
+            assets_dir = path
+            break
+    
+    if not assets_dir:
+        return
+    
+    # Carrega as imagens das peças
     for piece, filename in piece_filenames.items():
         try:
-            img = pygame.image.load(f"assets/{filename}")
-            piece_images[piece] = pygame.transform.scale(img, (PIECE_SIZE, PIECE_SIZE))
-        except FileNotFoundError:
-            print(f"Erro: Imagem para a peça {piece} ({filename}) não encontrada")
-            continue
+            filepath = os.path.join(assets_dir, filename)
+            
+            if os.path.exists(filepath):
+                img = pygame.image.load(filepath)
+                piece_images[piece] = pygame.transform.scale(img, (PIECE_SIZE, PIECE_SIZE))
+        except Exception:
+            pass
 
 def draw_board(selected_square=None, valid_moves=None, king_in_check=None):
-    # Desenha o tabuleiro
+    """Desenha o tabuleiro com os quadrados destacados, se houver."""
     for row in range(4):
         for col in range(4):
             color = LIGHT_SQUARE if (row + col) % 2 == 0 else DARK_SQUARE
@@ -62,36 +89,33 @@ def draw_board(selected_square=None, valid_moves=None, king_in_check=None):
             # Destaca a casa selecionada
             if selected_square and selected_square[0] == row and selected_square[1] == col:
                 color = HIGHLIGHT
-            # Destaca movimentos válidos
-            elif valid_moves and (row, col) in valid_moves:
-                pygame.draw.rect(screen, color, (col * SQUARE_SIZE + (WIDTH - BOARD_SIZE) // 2, 
-                                               row * SQUARE_SIZE + (HEIGHT - BOARD_SIZE) // 2, 
-                                               SQUARE_SIZE, SQUARE_SIZE))
-                # Círculo para indicar movimento válido
-                pygame.draw.circle(screen, GREEN, 
-                                 (col * SQUARE_SIZE + (WIDTH - BOARD_SIZE) // 2 + SQUARE_SIZE // 2, 
-                                  row * SQUARE_SIZE + (HEIGHT - BOARD_SIZE) // 2 + SQUARE_SIZE // 2), 
-                                 10)
-                continue
+            
             # Destaca o rei em xeque
             elif king_in_check and king_in_check[0] == row and king_in_check[1] == col:
-                # Fundo vermelho para o rei em xeque
-                color = (255, 100, 100)  # Vermelho claro
-                
-            pygame.draw.rect(screen, color, (col * SQUARE_SIZE + (WIDTH - BOARD_SIZE) // 2, 
-                                           row * SQUARE_SIZE + (HEIGHT - BOARD_SIZE) // 2, 
-                                           SQUARE_SIZE, SQUARE_SIZE))
+                color = RED  # Vermelho para xeque
+            
+            # Desenha o quadrado
+            pygame.draw.rect(screen, color, (
+                col * SQUARE_SIZE + (WIDTH - BOARD_SIZE) // 2, 
+                row * SQUARE_SIZE + (HEIGHT - BOARD_SIZE) // 2, 
+                SQUARE_SIZE, SQUARE_SIZE
+            ))
+            
+            # Destaca movimentos válidos
+            if valid_moves and (row, col) in valid_moves:
+                # Círculo para indicar movimento válido
+                pygame.draw.circle(screen, GREEN, (
+                    col * SQUARE_SIZE + (WIDTH - BOARD_SIZE) // 2 + SQUARE_SIZE // 2, 
+                    row * SQUARE_SIZE + (HEIGHT - BOARD_SIZE) // 2 + SQUARE_SIZE // 2
+                ), 10)
 
 def draw_pieces(board):
-    """
-    Desenha todas as peças no tabuleiro
-    O parâmetro board deve ser a matriz de peças (não o objeto MiniChess)
-    """
+    """Desenha todas as peças no tabuleiro."""
     for row in range(4):
         for col in range(4):
             piece = board[row][col]
             if piece != '.':
-                if piece in piece_images:  # Verifica se a imagem existe
+                if piece in piece_images:
                     x = col * SQUARE_SIZE + (WIDTH - BOARD_SIZE) // 2 + (SQUARE_SIZE - PIECE_SIZE) // 2
                     y = row * SQUARE_SIZE + (HEIGHT - BOARD_SIZE) // 2 + (SQUARE_SIZE - PIECE_SIZE) // 2
                     screen.blit(piece_images[piece], (x, y))
@@ -99,45 +123,43 @@ def draw_pieces(board):
                     print(f"Imagem para peça {piece} não carregada")
 
 def animate_move(chess_game, from_pos, to_pos):
-    """Anima o movimento de uma peça de from_pos para to_pos"""
+    """Anima o movimento de uma peça."""
     from_row, from_col = from_pos
     to_row, to_col = to_pos
     
-    # Obtém a peça que foi movida (já está na posição de destino)
+    # Obtém a peça que está sendo movida
     piece = chess_game.board[to_row][to_col]
     
-    # Configuração da animação
+    # Posições iniciais e finais
+    start_x = from_col * SQUARE_SIZE + (WIDTH - BOARD_SIZE) // 2 + (SQUARE_SIZE - PIECE_SIZE) // 2
+    start_y = from_row * SQUARE_SIZE + (HEIGHT - BOARD_SIZE) // 2 + (SQUARE_SIZE - PIECE_SIZE) // 2
+    end_x = to_col * SQUARE_SIZE + (WIDTH - BOARD_SIZE) // 2 + (SQUARE_SIZE - PIECE_SIZE) // 2
+    end_y = to_row * SQUARE_SIZE + (HEIGHT - BOARD_SIZE) // 2 + (SQUARE_SIZE - PIECE_SIZE) // 2
+    
+    # Animação
     clock = pygame.time.Clock()
     
-    # Verifica se há um rei em xeque após o movimento
+    # Verifica se há rei em xeque
     king_in_check = None
     if chess_game.is_check('w'):
         king_in_check = chess_game.king_positions['w']
     elif chess_game.is_check('b'):
         king_in_check = chess_game.king_positions['b']
     
-    # Animação
     for frame in range(ANIMATION_FRAMES + 1):
         progress = frame / ANIMATION_FRAMES
-        
-        # Calcular a posição de interpolação
-        start_x = from_col * SQUARE_SIZE + (WIDTH - BOARD_SIZE) // 2 + (SQUARE_SIZE - PIECE_SIZE) // 2
-        start_y = from_row * SQUARE_SIZE + (HEIGHT - BOARD_SIZE) // 2 + (SQUARE_SIZE - PIECE_SIZE) // 2
-        end_x = to_col * SQUARE_SIZE + (WIDTH - BOARD_SIZE) // 2 + (SQUARE_SIZE - PIECE_SIZE) // 2
-        end_y = to_row * SQUARE_SIZE + (HEIGHT - BOARD_SIZE) // 2 + (SQUARE_SIZE - PIECE_SIZE) // 2
-        
         current_x = start_x + (end_x - start_x) * progress
         current_y = start_y + (end_y - start_y) * progress
         
-        # Desenha o tabuleiro e as peças
+        # Redesenha o tabuleiro
         screen.fill(WHITE)
         draw_board(None, None, king_in_check)
         
-        # Desenha todas as peças, exceto a que está sendo animada
+        # Desenha todas as peças exceto a que está se movendo
         for r in range(4):
             for c in range(4):
                 p = chess_game.board[r][c]
-                if p != '.' and not (r == to_row and c == to_col):  # Não desenhar a peça que está sendo animada
+                if p != '.' and not (r == to_row and c == to_col):
                     if p in piece_images:
                         x = c * SQUARE_SIZE + (WIDTH - BOARD_SIZE) // 2 + (SQUARE_SIZE - PIECE_SIZE) // 2
                         y = r * SQUARE_SIZE + (HEIGHT - BOARD_SIZE) // 2 + (SQUARE_SIZE - PIECE_SIZE) // 2
@@ -147,98 +169,100 @@ def animate_move(chess_game, from_pos, to_pos):
         if piece in piece_images:
             screen.blit(piece_images[piece], (current_x, current_y))
         
-        # Desenha os elementos da interface
+        # Desenha a interface
         draw_reset_button()
         draw_new_game_button()
         display_ai_strength(ai_player)
         display_current_player(chess_game.current_player)
         
-        # Exibe mensagem de xeque se aplicável
+        # Exibe mensagem de xeque
         if king_in_check:
-            player_in_check = 'branco' if chess_game.is_check('w') else 'preto'
             font = pygame.font.SysFont(None, 36)
-            text = font.render(f"XEQUE ao rei {player_in_check}!", True, (255, 0, 0))
-            screen.blit(text, (20, HEIGHT - 120))
+            text = font.render("XEQUE!", True, RED)
+            screen.blit(text, (20, HEIGHT - 60))
         
         pygame.display.flip()
         clock.tick(60)
 
 def draw_reset_button():
+    """Desenha o botão de resetar o modelo da IA."""
     button_rect = pygame.Rect(WIDTH - 180, HEIGHT - 60, 150, 40)
     pygame.draw.rect(screen, (100, 100, 255), button_rect)
-    pygame.draw.rect(screen, (0, 0, 0), button_rect, 2)
+    pygame.draw.rect(screen, BLACK, button_rect, 2)
     
     font = pygame.font.SysFont(None, 28)
-    text = font.render("Resetar IA", True, (0, 0, 0))
+    text = font.render("Resetar IA", True, BLACK)
     screen.blit(text, (WIDTH - 160, HEIGHT - 50))
     
     return button_rect
 
 def draw_new_game_button():
+    """Desenha o botão de novo jogo."""
     button_rect = pygame.Rect(WIDTH - 180, HEIGHT - 110, 150, 40)
     pygame.draw.rect(screen, (100, 255, 100), button_rect)
-    pygame.draw.rect(screen, (0, 0, 0), button_rect, 2)
+    pygame.draw.rect(screen, BLACK, button_rect, 2)
     
     font = pygame.font.SysFont(None, 28)
-    text = font.render("Novo Jogo", True, (0, 0, 0))
+    text = font.render("Novo Jogo", True, BLACK)
     screen.blit(text, (WIDTH - 160, HEIGHT - 100))
     
     return button_rect
 
+def display_current_player(current_player):
+    """Mostra qual jogador está jogando atualmente."""
+    player_text = "Sua vez (brancas)" if current_player == 'w' else "Vez da IA (pretas)"
+    font = pygame.font.SysFont(None, 24)
+    text = font.render(player_text, True, BLACK)
+    screen.blit(text, (20, HEIGHT - 30))
+
+def display_ai_strength(ai_player):
+    """Mostra o nível de força atual da IA."""
+    strength_desc = ai_player.get_strength_description()
+    
+    font = pygame.font.SysFont(None, 24)
+    text = font.render(f"IA: {strength_desc}", True, BLACK)
+    text_rect = text.get_rect(topleft=(20, 20))
+    screen.blit(text, text_rect)
+
 def show_game_over(message):
+    """Mostra a mensagem de fim de jogo e aguarda clique para continuar."""
+    # Desenha a tela de fundo com overlay semitransparente
     overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 128))
     screen.blit(overlay, (0, 0))
     
-    font = pygame.font.SysFont(None, 64)
-    text = font.render(message, True, (255, 255, 255))
+    # Renderiza a mensagem de fim de jogo
+    font = pygame.font.SysFont(None, 48)
+    text = font.render(message, True, WHITE)
     text_rect = text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 50))
     screen.blit(text, text_rect)
     
-    font_small = pygame.font.SysFont(None, 32)
-    restart_text = font_small.render("Clique para jogar novamente", True, (255, 255, 255))
+    # Renderiza o texto para reiniciar
+    font_small = pygame.font.SysFont(None, 28)
+    restart_text = font_small.render("Clique para jogar novamente", True, WHITE)
     restart_rect = restart_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 50))
     screen.blit(restart_text, restart_rect)
     
-    # Adicionar o botão de novo jogo para visualização
-    new_game_button = draw_new_game_button()
-    
+    # Atualiza a tela uma única vez
     pygame.display.flip()
     
+    # Espera por um clique para continuar
     waiting = True
-    new_game_clicked = False
     while waiting:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
             if event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_pos = pygame.mouse.get_pos()
-                # Verificar se o botão de novo jogo foi clicado
-                if new_game_button and new_game_button.collidepoint(mouse_pos):
-                    # Marca que queremos criar um novo jogo
-                    new_game_clicked = True
-                    waiting = False
-                else:
-                    # Qualquer outro clique fecha a tela de game over
-                    waiting = False
+                # Reinicia o jogo quando o usuário clicar
+                return True
+        # Pequena pausa para não sobrecarregar a CPU
+        pygame.time.delay(20)
     
-    # Se o botão de novo jogo foi clicado, criamos um novo jogo
-    # Do contrário, o loop principal já vai criar um novo jogo
-    return new_game_clicked
-
-def display_ai_strength(ai_player):
-    font = pygame.font.SysFont(None, 24)
-    text = font.render(f"Força da IA: {ai_player.get_strength_description()}", True, (0, 0, 0))
-    screen.blit(text, (20, HEIGHT - 50))
-
-def display_current_player(current_player):
-    player_text = "Sua vez (brancas)" if current_player == 'w' else "Vez da IA (pretas)"
-    font = pygame.font.SysFont(None, 24)
-    text = font.render(player_text, True, (0, 0, 0))
-    screen.blit(text, (20, HEIGHT - 80))
+    return False
 
 def screen_coords_to_board(x, y):
+    """Converte coordenadas da tela para coordenadas do tabuleiro."""
     board_x = (WIDTH - BOARD_SIZE) // 2
     board_y = (HEIGHT - BOARD_SIZE) // 2
     
@@ -252,247 +276,247 @@ def screen_coords_to_board(x, y):
     return (row, col)
 
 def main():
-    # Criar diretório de assets se não existir
-    os.makedirs("assets", exist_ok=True)
+    """Função principal do jogo."""
+    # Garantir que os diretórios necessários existam
+    os.makedirs('minichess_ia2/models', exist_ok=True)
+    os.makedirs('minichess_ia2/assets', exist_ok=True)
     
-    # Verificar e criar diretório para modelos da IA
-    os.makedirs("models", exist_ok=True)
+    # Carregamento das imagens
+    load_piece_images()
     
-    # Inicializar o jogo
-    chess_game = MiniChess()
+    # Inicialização da IA
     global ai_player
     ai_player = MiniChessAI()
     
-    # Carregar imagens das peças
-    load_piece_images()
+    # Inicialização do jogo - permite que a IA ignore a regra de xeque nas 5 primeiras partidas
+    # para demonstração educacional da evolução da IA
+    ignore_check_rule = ai_player.games_played < 5
+    chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
     
+    # Estado do jogo
     selected_square = None
     valid_moves = []
     game_over = False
-    reset_button = None
-    new_game_button = None
+    game_over_message = ""
+    
+    # Jogador humano sempre é branco
+    human_player = 'w'
     
     # Loop principal
     clock = pygame.time.Clock()
+    running = True
+    ai_thinking = False
+    last_frame_time = time.time()
+    frames = 0
     
-    while True:
+    # Proteção contra travamentos
+    ai_move_attempts = 0
+    max_ai_move_attempts = 3
+    
+    while running:
+        # Monitoramento de FPS
+        current_time = time.time()
+        delta_time = current_time - last_frame_time
+        frames += 1
+        if delta_time >= 1.0:
+            fps = frames / delta_time
+            frames = 0
+            last_frame_time = current_time
+        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                # Salvar o modelo da IA antes de sair
-                ai_player.save_model()
-                pygame.quit()
-                sys.exit()
-                
+                running = False
+            
+            # Pula o processamento de eventos de mouse se o jogo acabou
+            if game_over:
+                continue
+            
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:  # Botão esquerdo do mouse
-                    mouse_pos = pygame.mouse.get_pos()
+                mouse_pos = pygame.mouse.get_pos()
+                
+                # Botão resetar IA
+                reset_button_rect = draw_reset_button()
+                if reset_button_rect.collidepoint(mouse_pos):
+                    ai_player.reset_model()
+                    # Reinicia o jogo com a flag de ignorar xeque ativada para IA iniciante
+                    chess_game = MiniChess(ignore_check_rule=True)
+                    selected_square = None
+                    valid_moves = []
+                    ai_move_attempts = 0
+                    continue
+                
+                # Botão novo jogo
+                new_game_button_rect = draw_new_game_button()
+                if new_game_button_rect.collidepoint(mouse_pos):
+                    # Mantém a configuração atual da IA, mas reinicia o tabuleiro
+                    ignore_check_rule = ai_player.games_played < 5
+                    chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
+                    selected_square = None
+                    valid_moves = []
+                    ai_move_attempts = 0
+                    continue
+                
+                # É a vez do jogador humano
+                if chess_game.current_player == human_player:
+                    # Converte coordenadas do mouse para coordenadas do tabuleiro
+                    board_pos = screen_coords_to_board(mouse_pos[0], mouse_pos[1])
                     
-                    # Verificar se o botão de reset foi clicado
-                    if reset_button and reset_button.collidepoint(mouse_pos):
-                        ai_player.reset_model()
-                        print("IA resetada!")
-                        continue
-                    
-                    # Verificar se o botão de novo jogo foi clicado
-                    if new_game_button and new_game_button.collidepoint(mouse_pos):
-                        chess_game = MiniChess()
-                        selected_square = None
-                        valid_moves = []
-                        game_over = False
-                        print("Novo jogo iniciado!")
-                        continue
-                    
-                    # Se não está em game over e é a vez do jogador (peças brancas)
-                    if not game_over and chess_game.current_player == 'w':
-                        clicked_square = screen_coords_to_board(*mouse_pos)
+                    if board_pos:
+                        row, col = board_pos
                         
-                        if clicked_square:
-                            row, col = clicked_square
-                            
-                            # Se já tiver uma peça selecionada
-                            if selected_square:
-                                # Tentar mover a peça
-                                move = (selected_square, clicked_square)
+                        # Se já tem uma peça selecionada
+                        if selected_square:
+                            # Tenta mover para a posição clicada
+                            if (row, col) in valid_moves:
+                                # Executa o movimento
+                                from_pos = selected_square
+                                to_pos = (row, col)
                                 
-                                # Verificar se o destino é um movimento válido
-                                if clicked_square in valid_moves:
-                                    # Salvar a posição inicial para a animação
-                                    from_pos = selected_square
-                                    to_pos = clicked_square
-                                    
-                                    # Executar o movimento
-                                    success = chess_game.make_move(move)
-                                    if success:
-                                        print(f"Movimento de {selected_square} para {clicked_square} realizado")
-                                        # Animar o movimento
-                                        animate_move(chess_game, from_pos, to_pos)
-                                        # Verifica e imprime o tabuleiro após o movimento
-                                        chess_game.print_board()
-                                    else:
-                                        print(f"Movimento inválido: {selected_square} -> {clicked_square}")
-                                    
-                                    selected_square = None
-                                    valid_moves = []
-                                    
-                                    # Verificar se o jogo acabou após o movimento do jogador
-                                    if chess_game.is_king_captured():
-                                        game_over = True
-                                        capturou = chess_game.is_king_captured()
-                                        if capturou == 'w':
-                                            ai_player.learn(chess_game, 1)  # Recompensa máxima para o jogador
-                                            new_game_clicked = show_game_over("Você venceu!")
-                                        else:
-                                            ai_player.learn(chess_game, 0)  # IA aprende com a vitória
-                                            new_game_clicked = show_game_over("IA venceu!")
-                                        
-                                        # Reiniciar o jogo
-                                        chess_game = MiniChess()
-                                        if new_game_clicked:
-                                            selected_square = None
-                                            valid_moves = []
-                                            game_over = False
-                                        else:
-                                            game_over = False
-                                    elif chess_game.is_game_over():
-                                        game_over = True
-                                        
-                                        if chess_game.is_checkmate():
-                                            ai_player.learn(chess_game, 0)  # IA aprende com a derrota
-                                            new_game_clicked = show_game_over("Você venceu!")
-                                        else:
-                                            ai_player.learn(chess_game, 0.5)  # Empate é neutro
-                                            new_game_clicked = show_game_over("Empate!")
-                                        
-                                        # Reiniciar o jogo
-                                        chess_game = MiniChess()
-                                        if new_game_clicked:
-                                            selected_square = None
-                                            valid_moves = []
-                                            game_over = False
-                                        else:
-                                            game_over = False
-                                    else:
-                                        # Vez da IA
-                                        print("Vez da IA...")
-                                        ai_move = ai_player.get_move(chess_game)
-                                        
-                                        if ai_move:
-                                            origin, dest = ai_move
-                                            print(f"IA move: {origin} -> {dest}")
-                                            
-                                            # Salvar para animação
-                                            ai_from_pos = origin
-                                            ai_to_pos = dest
-                                            
-                                            success = chess_game.make_move(ai_move)
-                                            
-                                            # Animar o movimento da IA
-                                            if success:
-                                                print(f"IA moveu de {origin} para {dest}")
-                                                animate_move(chess_game, ai_from_pos, ai_to_pos)
-                                                chess_game.print_board()
-                                            
-                                            # Verificar se o jogo acabou após o movimento da IA
-                                            if chess_game.is_king_captured():
-                                                game_over = True
-                                                capturou = chess_game.is_king_captured()
-                                                if capturou == 'w':
-                                                    ai_player.learn(chess_game, 1)  # Recompensa máxima para o jogador
-                                                    new_game_clicked = show_game_over("Você venceu!")
-                                                else:
-                                                    ai_player.learn(chess_game, 1)  # Recompensa máxima para a IA
-                                                    new_game_clicked = show_game_over("IA venceu!")
-                                                
-                                                # Reiniciar o jogo
-                                                chess_game = MiniChess()
-                                                if new_game_clicked:
-                                                    selected_square = None
-                                                    valid_moves = []
-                                                    game_over = False
-                                                else:
-                                                    game_over = False
-                                            elif chess_game.is_game_over():
-                                                game_over = True
-                                                
-                                                if chess_game.is_checkmate():
-                                                    # IA ganhou
-                                                    ai_player.learn(chess_game, 1)  # Recompensa máxima para a IA
-                                                    new_game_clicked = show_game_over("IA venceu!")
-                                                else:
-                                                    # Empate
-                                                    ai_player.learn(chess_game, 0.5)  # Empate é neutro
-                                                    new_game_clicked = show_game_over("Empate!")
-                                                
-                                                # Reiniciar o jogo
-                                                chess_game = MiniChess()
-                                                if new_game_clicked:
-                                                    selected_square = None
-                                                    valid_moves = []
-                                                    game_over = False
-                                                else:
-                                                    game_over = False
-                                        else:
-                                            if chess_game.is_check('b'):
-                                                ai_player.learn(chess_game, 0)  # IA aprende com a derrota
-                                                new_game_clicked = show_game_over("Você venceu!")
-                                                chess_game = MiniChess()
-                                                if new_game_clicked:
-                                                    selected_square = None
-                                                    valid_moves = []
-                                                    game_over = False
-                                                else:
-                                                    game_over = False
-                                else:
-                                    # Cancelar seleção ou selecionar nova peça
-                                    piece = chess_game.board[row][col]
-                                    if piece != '.' and chess_game.get_piece_color(piece) == 'w':
-                                        selected_square = (row, col)
-                                        valid_moves = chess_game.get_valid_moves(selected_square)
-                                        print(f"Nova peça {piece} selecionada em {selected_square}. Movimentos válidos: {valid_moves}")
-                                    else:
-                                        selected_square = None
-                                        valid_moves = []
+                                chess_game.make_move((from_pos, to_pos))
+                                
+                                # Anima o movimento
+                                animate_move(chess_game, from_pos, to_pos)
+                                
+                                # Limpa seleção
+                                selected_square = None
+                                valid_moves = []
+                                ai_move_attempts = 0
+                                
+                                # Verifica condições de fim de jogo
+                                if chess_game.is_checkmate():
+                                    game_over = True
+                                    game_over_message = "Xeque-mate! Você venceu!"
+                                    ai_player.learn(chess_game, -1.0)  # Recompensa negativa para a IA
+                                elif chess_game.is_king_captured() == 'b':
+                                    game_over = True
+                                    game_over_message = "Rei preto capturado! Você venceu!"
+                                    ai_player.learn(chess_game, -1.0)  # Recompensa negativa para a IA
+                                elif chess_game.is_draw():
+                                    game_over = True
+                                    game_over_message = "Empate!"
+                                    ai_player.learn(chess_game, 0.0)  # Recompensa neutra
                             else:
-                                # Selecionar peça
+                                # Se clicou em outra peça própria, seleciona ela
                                 piece = chess_game.board[row][col]
-                                if piece != '.' and chess_game.get_piece_color(piece) == 'w':
+                                if piece != '.' and chess_game.get_piece_color(piece) == human_player:
                                     selected_square = (row, col)
                                     valid_moves = chess_game.get_valid_moves(selected_square)
-                                    print(f"Peça {piece} selecionada em {selected_square}. Movimentos válidos: {valid_moves}")
-                
-        # Renderização
+                                else:
+                                    # Clicou em uma posição inválida, limpa seleção
+                                    selected_square = None
+                                    valid_moves = []
+                        else:
+                            # Seleciona uma peça para mover
+                            piece = chess_game.board[row][col]
+                            if piece != '.' and chess_game.get_piece_color(piece) == human_player:
+                                selected_square = (row, col)
+                                valid_moves = chess_game.get_valid_moves(selected_square)
+        
+        # Desenha o jogo
         screen.fill(WHITE)
         
-        # Verifica se há um rei em xeque
+        # Verifica se há rei em xeque
         king_in_check = None
         if chess_game.is_check('w'):
             king_in_check = chess_game.king_positions['w']
         elif chess_game.is_check('b'):
             king_in_check = chess_game.king_positions['b']
         
-        # Desenha o tabuleiro com destaque para o rei em xeque, se houver
+        # Desenha o tabuleiro e as peças
         draw_board(selected_square, valid_moves, king_in_check)
-        
-        # Desenha as peças
         draw_pieces(chess_game.board)
         
-        # Desenha os botões
-        reset_button = draw_reset_button()
-        new_game_button = draw_new_game_button()
-        
-        # Mostra informações da IA
+        # Desenha a interface
+        draw_reset_button()
+        draw_new_game_button()
         display_ai_strength(ai_player)
         display_current_player(chess_game.current_player)
         
-        # Exibe mensagem de xeque se aplicável
-        if king_in_check and not game_over:
-            player_in_check = 'Brancas' if chess_game.is_check('w') else 'Pretas'
+        # Exibe mensagem de xeque
+        if king_in_check:
             font = pygame.font.SysFont(None, 36)
-            text = font.render(f"XEQUE: {player_in_check} em perigo!", True, (255, 0, 0))
-            screen.blit(text, (20, HEIGHT - 120))
+            text = font.render("XEQUE!", True, RED)
+            screen.blit(text, (20, HEIGHT - 60))
         
+        # Atualiza a tela
         pygame.display.flip()
-        clock.tick(30)  # 30 FPS
+        
+        # Lida com o fim de jogo uma única vez
+        if game_over:
+            # Espera por clique para reiniciar
+            if show_game_over(game_over_message):
+                # Atualiza a flag ignore_check_rule com base no número de jogos
+                ignore_check_rule = ai_player.games_played < 5
+                # Reinicia o jogo
+                chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
+                game_over = False
+                selected_square = None
+                valid_moves = []
+                ai_move_attempts = 0
+        
+        # É a vez da IA
+        if not game_over and chess_game.current_player != human_player and not ai_thinking:
+            # Proteção contra travamentos
+            if ai_move_attempts >= max_ai_move_attempts:
+                chess_game = MiniChess()
+                ai_move_attempts = 0
+                continue
+            
+            # IA está pensando
+            ai_thinking = True
+            
+            try:
+                # Pequena pausa para visualização
+                time.sleep(0.5)
+                
+                # IA faz o movimento
+                ai_move = ai_player.get_move(chess_game)
+                
+                if ai_move:
+                    origin, dest = ai_move
+                    
+                    # Executa o movimento
+                    chess_game.make_move(ai_move)
+                    ai_move_attempts = 0
+                    
+                    # Anima o movimento
+                    animate_move(chess_game, origin, dest)
+                    
+                    # Verifica condições de fim de jogo
+                    if chess_game.is_checkmate():
+                        game_over = True
+                        game_over_message = "Xeque-mate! IA venceu!"
+                        ai_player.learn(chess_game, 1.0)  # Recompensa positiva
+                    elif chess_game.is_king_captured() == 'w':
+                        game_over = True
+                        game_over_message = "Rei branco capturado! IA venceu!"
+                        ai_player.learn(chess_game, 1.0)  # Recompensa positiva
+                    elif chess_game.is_draw():
+                        game_over = True
+                        game_over_message = "Empate!"
+                        ai_player.learn(chess_game, 0.0)  # Recompensa neutra
+                else:
+                    # Sem movimentos válidos
+                    game_over = True
+                    game_over_message = "IA sem movimentos! Você venceu!"
+                    ai_player.learn(chess_game, -1.0)  # Recompensa negativa
+            except Exception as e:
+                ai_move_attempts += 1
+                # Se ocorrerem muitos erros, encerra o jogo
+                if ai_move_attempts >= max_ai_move_attempts:
+                    game_over = True
+                    game_over_message = "Erro no jogo! Clique para reiniciar."
+            finally:
+                # IA terminou de pensar
+                ai_thinking = False
+        
+        # Controla a taxa de frames
+        clock.tick(60)
+    
+    # Salva o modelo antes de sair
+    ai_player.save_model()
+    pygame.quit()
+    sys.exit()
 
 if __name__ == "__main__":
     main() 

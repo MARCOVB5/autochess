@@ -6,7 +6,16 @@ class MiniChess:
     Implementação de um jogo de MiniChess 4x4.
     """
     
-    def __init__(self):
+    def __init__(self, ignore_check_rule=False):
+        """
+        Inicializa um tabuleiro 4x4
+        Notação: maiúsculas para peças brancas, minúsculas para pretas
+        Peças: R=torre, Q=rainha, K=rei, P=peão
+        '.' representa uma casa vazia
+        
+        Args:
+            ignore_check_rule: Se True, permite movimentos que deixam o próprio rei em xeque (usado para IA iniciante)
+        """
         # Inicializa um tabuleiro 4x4
         # Notação: maiúsculas para peças brancas, minúsculas para pretas
         # Peças: R=torre, Q=rainha, K=rei, P=peão
@@ -15,8 +24,11 @@ class MiniChess:
             ['r', 'q', 'k', 'r'], 
             ['p', 'p', 'p', 'p'],
             ['P', 'P', 'P', 'P'],
-            ['R', 'K', 'Q', 'R']
+            ['R', 'Q', 'K', 'R']
         ]
+        
+        # Tamanho do tabuleiro
+        self.board_size = 4
         
         # O jogador branco começa
         self.current_player = 'w'
@@ -26,9 +38,12 @@ class MiniChess:
         
         # Posições dos reis para verificação de xeque-mate
         self.king_positions = {
-            'w': (3, 1),  # Posição inicial do rei branco (linha, coluna)
+            'w': (3, 2),  # Posição inicial do rei branco (linha, coluna)
             'b': (0, 2)   # Posição inicial do rei preto (linha, coluna)
         }
+        
+        # Flag para permitir movimentos que deixam o próprio rei em xeque
+        self.ignore_check_rule = ignore_check_rule
         
     def get_piece_color(self, piece):
         """Retorna a cor da peça ('w' para brancas, 'b' para pretas)"""
@@ -40,10 +55,11 @@ class MiniChess:
         """Verifica se a posição está dentro do tabuleiro"""
         return 0 <= row < 4 and 0 <= col < 4
     
-    def get_valid_moves(self, position):
+    def get_basic_moves(self, position):
         """
-        Retorna todos os movimentos válidos para a peça na posição dada,
-        excluindo movimentos que deixariam o próprio rei em xeque
+        Retorna todos os movimentos básicos para a peça na posição dada,
+        sem verificar se o movimento deixa o rei em xeque.
+        Usado internamente para evitar recursão infinita.
         """
         row, col = position
         piece = self.board[row][col]
@@ -54,7 +70,7 @@ class MiniChess:
         if self.get_piece_color(piece) != self.current_player:
             return []
         
-        possible_moves = []
+        valid_moves = []
         piece_type = piece.lower()
         
         # Movimentos do peão
@@ -64,13 +80,13 @@ class MiniChess:
             # Movimento para frente
             new_row = row + direction
             if self.is_valid_position(new_row, col) and self.board[new_row][col] == '.':
-                possible_moves.append((new_row, col))
+                valid_moves.append((new_row, col))
             
             # Captura diagonal
             for new_col in [col-1, col+1]:
                 if self.is_valid_position(new_row, new_col) and self.board[new_row][new_col] != '.':
                     if self.get_piece_color(self.board[new_row][new_col]) != self.current_player:
-                        possible_moves.append((new_row, new_col))
+                        valid_moves.append((new_row, new_col))
         
         # Movimentos da torre
         elif piece_type == 'r':
@@ -85,10 +101,10 @@ class MiniChess:
                         break
                     
                     if self.board[new_row][new_col] == '.':
-                        possible_moves.append((new_row, new_col))
+                        valid_moves.append((new_row, new_col))
                     else:
                         if self.get_piece_color(self.board[new_row][new_col]) != self.current_player:
-                            possible_moves.append((new_row, new_col))
+                            valid_moves.append((new_row, new_col))
                         break
         
         # Movimentos da rainha (combinação de torre e movimento diagonal)
@@ -104,10 +120,10 @@ class MiniChess:
                         break
                     
                     if self.board[new_row][new_col] == '.':
-                        possible_moves.append((new_row, new_col))
+                        valid_moves.append((new_row, new_col))
                     else:
                         if self.get_piece_color(self.board[new_row][new_col]) != self.current_player:
-                            possible_moves.append((new_row, new_col))
+                            valid_moves.append((new_row, new_col))
                         break
         
         # Movimentos do rei
@@ -120,34 +136,90 @@ class MiniChess:
                 
                 if self.is_valid_position(new_row, new_col):
                     if self.board[new_row][new_col] == '.' or self.get_piece_color(self.board[new_row][new_col]) != self.current_player:
-                        possible_moves.append((new_row, new_col))
-        
-        # Filtrar movimentos que deixariam o próprio rei em xeque
-        valid_moves = []
-        for move in possible_moves:
-            # Cria uma cópia profunda do jogo para simular o movimento
-            temp_game = deepcopy(self)
-            
-            # Simula o movimento
-            origin = (row, col)
-            destination = move
-            
-            # Executa o movimento na cópia temporária (sem validação)
-            # Isso simula o movimento mas não troca o jogador atual
-            temp_game.board[destination[0]][destination[1]] = temp_game.board[origin[0]][origin[1]]
-            temp_game.board[origin[0]][origin[1]] = '.'
-            
-            # Atualiza a posição do rei na cópia temporária, se necessário
-            if piece_type == 'k':
-                temp_game.king_positions[self.current_player] = destination
-            
-            # Verifica se o movimento deixaria o rei em xeque
-            if not temp_game.is_check(self.current_player):
-                valid_moves.append(move)
+                        valid_moves.append((new_row, new_col))
         
         return valid_moves
     
-    def make_move(self, move):
+    def get_valid_moves(self, position):
+        """
+        Retorna todos os movimentos válidos para a peça na posição dada
+        """
+        # Primeiro obtemos os movimentos básicos
+        valid_moves = self.get_basic_moves(position)
+        
+        # Se estivermos ignorando a regra do xeque, retornamos todos os movimentos básicos
+        if self.ignore_check_rule and self.get_piece_color(self.board[position[0]][position[1]]) == 'b':
+            return valid_moves
+        
+        # Filtra movimentos que deixariam o rei em xeque
+        filtered_moves = []
+        for move in valid_moves:
+            # Simula o movimento
+            temp_board = deepcopy(self)
+            temp_board.make_move((position, move), check_validity=False)
+            # Se o movimento não deixa o rei em xeque, é válido
+            if not temp_board.is_king_attacked(self.current_player):
+                filtered_moves.append(move)
+        
+        return filtered_moves
+    
+    def is_king_attacked(self, player):
+        """
+        Verifica se o rei do jogador está sob ataque direto.
+        Esta função é usada para verificar xeque sem recursão infinita.
+        """
+        king_row, king_col = self.king_positions[player]
+        opponent = 'b' if player == 'w' else 'w'
+        
+        # Verifica se alguma peça do oponente pode atacar o rei
+        for row in range(4):
+            for col in range(4):
+                piece = self.board[row][col]
+                if piece != '.' and self.get_piece_color(piece) == opponent:
+                    # Temporariamente muda o jogador atual para o oponente
+                    original_player = self.current_player
+                    self.current_player = opponent
+                    
+                    # Verifica se a peça pode mover para a posição do rei
+                    # usando movimentos básicos (sem verificar xeque recursivamente)
+                    moves = self.get_basic_moves((row, col))
+                    
+                    # Restaura o jogador atual
+                    self.current_player = original_player
+                    
+                    if (king_row, king_col) in moves:
+                        return True
+        
+        return False
+    
+    def is_check(self, player):
+        """
+        Verifica se o jogador está em xeque
+        """
+        return self.is_king_attacked(player)
+    
+    def get_all_valid_moves(self, player):
+        """
+        Retorna todos os movimentos válidos para todas as peças do jogador
+        """
+        all_moves = []
+        for row in range(4):
+            for col in range(4):
+                piece = self.board[row][col]
+                if piece != '.' and self.get_piece_color(piece) == player:
+                    original_player = self.current_player
+                    if player != self.current_player:
+                        # Temporariamente mudar o jogador para calcular movimentos válidos
+                        self.current_player = player
+                    origin = (row, col)
+                    moves = self.get_valid_moves(origin)
+                    for dest in moves:
+                        all_moves.append((origin, dest))
+                    # Restaurar o jogador original
+                    self.current_player = original_player
+        return all_moves
+
+    def make_move(self, move, check_validity=True):
         """
         Executa um movimento no formato ((origem_linha, origem_coluna), (destino_linha, destino_coluna))
         Retorna True se o movimento foi bem-sucedido, False caso contrário
@@ -169,10 +241,11 @@ class MiniChess:
         if self.get_piece_color(piece) != self.current_player:
             return False
         
-        # Verifica se o movimento é válido
-        valid_moves = self.get_valid_moves((orig_row, orig_col))
-        if (dest_row, dest_col) not in valid_moves:
-            return False
+        # Verifica se o movimento é válido (apenas se check_validity=True)
+        if check_validity:
+            valid_moves = self.get_valid_moves((orig_row, orig_col))
+            if (dest_row, dest_col) not in valid_moves:
+                return False
         
         # Captura a peça no destino, se houver
         captured_piece = self.board[dest_row][dest_col]
@@ -192,313 +265,112 @@ class MiniChess:
         self.current_player = 'b' if self.current_player == 'w' else 'w'
         
         return True
-    
-    def make_move_without_validation(self, move):
-        """
-        Executa um movimento sem validações (usado internamente)
-        """
-        origin, destination = move
-        orig_row, orig_col = origin
-        dest_row, dest_col = destination
-        
-        piece = self.board[orig_row][orig_col]
-        
-        # Atualiza a posição do rei, se necessário
-        if piece.lower() == 'k':
-            self.king_positions[self.get_piece_color(piece)] = (dest_row, dest_col)
-        
-        # Executa o movimento
-        self.board[dest_row][dest_col] = piece
-        self.board[orig_row][orig_col] = '.'
-        
-        # Troca o jogador atual
-        self.current_player = 'b' if self.current_player == 'w' else 'w'
-    
-    def is_check(self, player):
-        """
-        Verifica se o jogador está em xeque
-        """
-        king_row, king_col = self.king_positions[player]
-        opponent = 'b' if player == 'w' else 'w'
-        
-        # Verifica se alguma peça do oponente pode atacar o rei
-        for row in range(4):
-            for col in range(4):
-                piece = self.board[row][col]
-                if piece != '.' and self.get_piece_color(piece) == opponent:
-                    # Peão
-                    if piece.lower() == 'p':
-                        direction = -1 if opponent == 'w' else 1
-                        if row + direction == king_row and (col - 1 == king_col or col + 1 == king_col):
-                            return True
-                    
-                    # Torre
-                    elif piece.lower() == 'r':
-                        # Mesma linha
-                        if row == king_row:
-                            blocked = False
-                            for c in range(min(col, king_col) + 1, max(col, king_col)):
-                                if self.board[row][c] != '.':
-                                    blocked = True
-                                    break
-                            if not blocked:
-                                return True
-                        
-                        # Mesma coluna
-                        elif col == king_col:
-                            blocked = False
-                            for r in range(min(row, king_row) + 1, max(row, king_row)):
-                                if self.board[r][col] != '.':
-                                    blocked = True
-                                    break
-                            if not blocked:
-                                return True
-                    
-                    # Rainha
-                    elif piece.lower() == 'q':
-                        # Movimentos horizontais/verticais (como torre)
-                        if row == king_row:  # Mesma linha
-                            blocked = False
-                            for c in range(min(col, king_col) + 1, max(col, king_col)):
-                                if self.board[row][c] != '.':
-                                    blocked = True
-                                    break
-                            if not blocked:
-                                return True
-                        
-                        elif col == king_col:  # Mesma coluna
-                            blocked = False
-                            for r in range(min(row, king_row) + 1, max(row, king_row)):
-                                if self.board[r][col] != '.':
-                                    blocked = True
-                                    break
-                            if not blocked:
-                                return True
-                        
-                        # Movimentos diagonais
-                        elif abs(row - king_row) == abs(col - king_col):  # Está em diagonal
-                            # Determina a direção da diagonal
-                            dr = 1 if king_row > row else -1
-                            dc = 1 if king_col > col else -1
-                            
-                            blocked = False
-                            r, c = row + dr, col + dc
-                            
-                            # Percorre a diagonal até atingir o rei
-                            while r != king_row and c != king_col:
-                                if not (0 <= r < 4 and 0 <= c < 4):
-                                    blocked = True  # Fora dos limites
-                                    break
-                                    
-                                if self.board[r][c] != '.':
-                                    blocked = True  # Peça no caminho
-                                    break
-                                    
-                                r += dr
-                                c += dc
-                            
-                            # Se chegou até aqui sem bloqueios, é xeque
-                            if not blocked:
-                                return True
-                    
-                    # Rei (adjacente)
-                    elif piece.lower() == 'k':
-                        if abs(row - king_row) <= 1 and abs(col - king_col) <= 1:
-                            return True
-        
-        return False
-    
-    def print_board(self):
-        """
-        Imprime o tabuleiro no console para depuração
-        """
-        print("\n  0 1 2 3")
-        print(" +-+-+-+-+")
-        for row in range(4):
-            print(f"{row}|", end="")
-            for col in range(4):
-                print(f"{self.board[row][col]}|", end="")
-            print("\n +-+-+-+-+")
-        print(f"Jogador atual: {'Brancas' if self.current_player == 'w' else 'Pretas'}")
-        print(f"Rei branco: {self.king_positions['w']}")
-        print(f"Rei preto: {self.king_positions['b']}")
-        print(f"Xeque para brancas: {self.is_check('w')}")
-        print(f"Xeque para pretas: {self.is_check('b')}")
-        print("\n")
-    
+
     def is_checkmate(self):
         """
         Verifica se o jogador atual está em xeque-mate
         """
-        player = self.current_player
-        
-        # Se não estiver em xeque, não pode ser xeque-mate
-        if not self.is_check(player):
+        # Se o jogador não está em xeque, não é xeque-mate
+        if not self.is_check(self.current_player):
             return False
         
-        # Verifica se há algum movimento válido para qualquer peça
-        # A função get_valid_moves já filtra movimentos que deixariam o rei em xeque
-        for row in range(4):
-            for col in range(4):
-                piece = self.board[row][col]
-                if piece != '.' and self.get_piece_color(piece) == player:
-                    valid_moves = self.get_valid_moves((row, col))
-                    if valid_moves:
-                        # Existe pelo menos um movimento válido que tira do xeque
-                        return False
-        
-        # Se nenhum movimento é possível enquanto estiver em xeque, é xeque-mate
-        return True
-    
-    def is_king_captured(self):
-        """
-        Verifica se algum rei foi capturado
-        """
-        # Conta os reis no tabuleiro
-        white_king_found = False
-        black_king_found = False
-        
-        for row in range(4):
-            for col in range(4):
-                piece = self.board[row][col]
-                if piece == 'K':
-                    white_king_found = True
-                elif piece == 'k':
-                    black_king_found = True
-        
-        # Se algum rei não foi encontrado, ele foi capturado
-        if not white_king_found:
-            return 'b'  # Pretas venceram
-        elif not black_king_found:
-            return 'w'  # Brancas venceram
-        
-        return None  # Nenhum rei capturado
-    
-    def is_only_kings_remaining(self):
-        """
-        Verifica se restam apenas os dois reis no tabuleiro
-        """
-        kings_count = 0
-        other_pieces = 0
-        
-        for row in range(4):
-            for col in range(4):
-                piece = self.board[row][col]
-                if piece == 'K' or piece == 'k':
-                    kings_count += 1
-                elif piece != '.':
-                    other_pieces += 1
-        
-        # Retorna True se houver exatamente 2 reis e nenhuma outra peça
-        return kings_count == 2 and other_pieces == 0
-    
-    def is_stalemate(self):
-        """
-        Verifica se o jogador atual está em afogamento (stalemate)
-        """
-        # Se estiver em xeque, não é afogamento
-        if self.is_check(self.current_player):
-            return False
-        
-        # Verifica se há algum movimento válido
+        # Verifica se há algum movimento legal para sair do xeque
         for row in range(4):
             for col in range(4):
                 piece = self.board[row][col]
                 if piece != '.' and self.get_piece_color(piece) == self.current_player:
                     moves = self.get_valid_moves((row, col))
-                    if moves:
+                    if moves:  # Se há pelo menos um movimento legal
                         return False
         
-        # Se não houver movimentos válidos, é afogamento
+        # Não há movimentos para sair do xeque, é xeque-mate
+        return True
+    
+    def is_king_captured(self):
+        """
+        Verifica se algum rei foi capturado (o que encerra o jogo)
+        Retorna a cor do jogador que perdeu ('w' ou 'b'), ou None se nenhum rei foi capturado
+        """
+        # Verifica se o rei branco está no tabuleiro
+        white_king_found = False
+        for row in range(4):
+            for col in range(4):
+                if self.board[row][col] == 'K':
+                    white_king_found = True
+                    break
+            if white_king_found:
+                break
+        
+        # Verifica se o rei preto está no tabuleiro
+        black_king_found = False
+        for row in range(4):
+            for col in range(4):
+                if self.board[row][col] == 'k':
+                    black_king_found = True
+                    break
+            if black_king_found:
+                break
+        
+        if not white_king_found:
+            return 'w'  # Rei branco capturado
+        if not black_king_found:
+            return 'b'  # Rei preto capturado
+            
+        return None  # Nenhum rei capturado
+    
+    def is_draw(self):
+        """
+        Verifica se o jogo está empatado (sem movimentos legais, mas não em xeque)
+        """
+        # Se estiver em xeque, não é empate
+        if self.is_check(self.current_player):
+            return False
+        
+        # Verifica se há algum movimento legal
+        for row in range(4):
+            for col in range(4):
+                piece = self.board[row][col]
+                if piece != '.' and self.get_piece_color(piece) == self.current_player:
+                    moves = self.get_valid_moves((row, col))
+                    if moves:  # Se há pelo menos um movimento legal
+                        return False
+        
+        # Não há movimentos legais e não está em xeque, é empate
         return True
     
     def is_game_over(self):
         """
-        Verifica se o jogo acabou (xeque-mate, empate, rei capturado ou apenas reis restantes)
+        Verifica se o jogo acabou (rei capturado, xeque-mate ou empate)
         """
-        # Verifica se algum rei foi capturado
-        captured = self.is_king_captured()
-        if captured:
-            return True
-        
-        # Verifica se restam apenas os dois reis
-        if self.is_only_kings_remaining():
-            return True
-        
-        # Verifica xeque-mate ou empate
-        return self.is_checkmate() or self.is_stalemate()
+        return (self.is_king_captured() is not None or 
+                self.is_checkmate() or 
+                self.is_draw())
     
     def get_result(self):
         """
-        Retorna o resultado do jogo
-        1 se as brancas venceram, -1 se as pretas venceram, 0 para empate, None se o jogo não acabou
+        Retorna o resultado do jogo:
+        1 para vitória das brancas, -1 para vitória das pretas, 0 para empate,
+        None se o jogo ainda não acabou
         """
-        # Verifica se algum rei foi capturado
-        captured = self.is_king_captured()
-        if captured == 'w':
-            return 1  # Brancas venceram
-        elif captured == 'b':
-            return -1  # Pretas venceram
-        
-        # Verifica se restam apenas os dois reis (empate)
-        if self.is_only_kings_remaining():
-            return 0
-        
         if not self.is_game_over():
             return None
-        
-        if self.is_checkmate():
-            return -1 if self.current_player == 'w' else 1  # O jogador que não está em movimento venceu
-        
-        return 0  # Empate
+            
+        if self.is_king_captured() == 'b':
+            return 1  # Vitória das brancas
+        elif self.is_king_captured() == 'w':
+            return -1  # Vitória das pretas
+        elif self.is_checkmate():
+            # Se é xeque-mate, o jogador atual perdeu
+            return 1 if self.current_player == 'b' else -1
+        else:
+            return 0  # Empate
     
     def get_state_representation(self):
         """
-        Retorna uma representação do estado atual do jogo para aprendizado da IA
+        Retorna uma representação do estado do jogo como uma tupla hashable
         """
-        # Tabuleiro linearizado com 1 para peças brancas, -1 para peças pretas, 0 para vazias
-        state = []
-        for row in range(4):
-            for col in range(4):
-                piece = self.board[row][col]
-                if piece == '.':
-                    state.append(0)
-                else:
-                    value = 0
-                    piece_type = piece.lower()
-                    if piece_type == 'p':
-                        value = 1
-                    elif piece_type == 'r':
-                        value = 2
-                    elif piece_type == 'q':
-                        value = 5
-                    elif piece_type == 'k':
-                        value = 6
-                    
-                    if self.get_piece_color(piece) == 'b':
-                        value = -value
-                    
-                    state.append(value)
+        # Flatten o tabuleiro em uma única string
+        board_str = ''.join(''.join(row) for row in self.board)
         
-        # Adiciona o jogador atual (1 para brancas, -1 para pretas)
-        state.append(1 if self.current_player == 'w' else -1)
-        
-        return np.array(state)
-    
-    def get_all_valid_moves(self, player):
-        """
-        Retorna todos os movimentos válidos para um jogador específico.
-        Utilizado pela IA para análise de mobilidade.
-        """
-        valid_moves = []
-        
-        for row in range(4):
-            for col in range(4):
-                piece = self.board[row][col]
-                if piece != '.' and self.get_piece_color(piece) == player:
-                    position = (row, col)
-                    moves = self.get_valid_moves(position)
-                    for move in moves:
-                        valid_moves.append((position, move))
-        
-        return valid_moves 
+        # Adiciona o jogador atual
+        return (board_str, self.current_player) 

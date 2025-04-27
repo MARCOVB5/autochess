@@ -1,79 +1,78 @@
-# Mini Chess 4x4 com IA de Aprendizado
+# MiniChess com IA de Aprendizado (Q-Learning)
 
-Este projeto implementa um jogo de xadrez 4x4 (Mini Chess) com uma IA que aprende a jogar melhor conforme mais partidas são disputadas.
+Uma implementação de xadrez miniatura (4x4) com uma IA que aprende a jogar usando técnicas de aprendizado por reforço (Q-Learning).
+
+## Sobre o Jogo
+
+MiniChess é uma versão simplificada do xadrez tradicional, jogada em um tabuleiro 4x4. O jogo mantém as mesmas regras básicas do xadrez, mas com um espaço menor e apenas quatro tipos de peças:
+
+- Rei (K): Move-se uma casa em qualquer direção
+- Rainha (Q): Move-se em linha reta em qualquer direção
+- Torre (R): Move-se em linha reta horizontal ou vertical
+- Peão (P): Move-se uma casa para frente e captura na diagonal
+
+## Sobre a IA
+
+A IA utiliza um algoritmo de aprendizado por reforço chamado Q-Learning para melhorar progressivamente suas habilidades. Ela passa por três fases distintas de aprendizado:
+
+1. **Fase 1 (Jogos 0-4)**: A IA é "super burra", propositalmente fazendo movimentos ruins para explorar o espaço de estados do jogo. Ela tenta sacrificar suas peças mais valiosas.
+
+2. **Fase 2 (Jogos 5-9)**: A IA está em transição, gradualmente começando a fazer movimentos melhores a cada jogo.
+
+3. **Fase 3 (Jogos 10+)**: A IA se torna "inteligente", utilizando o conhecimento que adquiriu para jogar de forma competitiva.
+
+A cada jogo, a IA recebe recompensas com base no resultado da partida:
+- Vitória: +1
+- Empate: 0
+- Derrota: -1
+
+Esses valores são invertidos durante a fase 1 para incentivar o comportamento exploratório.
 
 ## Requisitos
 
-- Python 3.7 ou superior
+- Python 3.6+
 - Pygame
-- Numpy
+- NumPy
 
 ## Instalação
 
-1. Clone este repositório:
+1. Clone o repositório:
 ```
-git clone https://github.com/seu-usuario/minichess-learning-ai.git
-cd minichess-learning-ai
+git clone <repositório>
+cd <repositório>
 ```
 
 2. Instale as dependências:
 ```
-pip install -r requirements.txt
-```
-
-3. Para executar o jogo:
-```
-python main.py
+pip install -r minichess_ia2/requirements.txt
 ```
 
 ## Como Jogar
 
-- Use o mouse para selecionar e mover as peças brancas
-- Primeiro clique na peça que deseja mover
-- Os movimentos válidos serão destacados com círculos verdes
-- Clique em um dos círculos verdes para mover a peça para aquela posição
-- A IA (peças pretas) fará seu movimento automaticamente após o seu
-- Após cada partida, a IA aprende e melhora para as próximas partidas
-- Você pode resetar o aprendizado da IA clicando no botão "Resetar IA"
+Execute o script principal:
+```
+python minichess_ia2/run.py
+```
 
-## Funcionamento da IA
+### Controles:
+- Clique em uma peça para selecioná-la
+- Clique em um destino válido (destacado em verde) para mover
+- Botão "Novo Jogo": Inicia uma nova partida
+- Botão "Resetar IA": Reinicia a IA para a fase 1 (apaga todo o aprendizado)
+- Botões "F1", "F2", "F3": Força a IA a entrar na fase específica
 
-A IA utiliza aprendizado por reforço (Q-learning) para melhorar suas jogadas:
+## Como Funciona a IA
 
-1. No início, a IA faz movimentos aleatórios (exploração)
-2. Conforme aprende quais movimentos levam a vitórias, começa a usar esse conhecimento (exploitação)
-3. O modelo é salvo automaticamente após cada partida e carregado quando você reinicia o jogo
-4. A força da IA é exibida na tela e evolui com o número de partidas jogadas
+A IA utiliza Q-Learning, armazenando valores para cada par estado-ação em uma tabela. A função Q representa a utilidade esperada de tomar uma ação específica em um determinado estado. A IA aprende atualizando esses valores com base nas recompensas recebidas.
 
-## Regras do Mini Chess 4x4
+Durante as primeiras partidas, a IA prioriza exploração (fazendo movimentos ruins de propósito) para conhecer melhor o espaço de estados. Conforme joga mais partidas, ela gradualmente equilibra exploração com exploração (escolhendo os melhores movimentos conhecidos).
 
-- O tabuleiro é de 4x4 casas
-- Brancas jogam primeiro
-- Configuração inicial:
-  - Primeira fileira (pretas): torre, rainha, rei, torre
-  - Segunda fileira (pretas): 4 peões
-  - Terceira fileira (brancas): 4 peões
-  - Quarta fileira (brancas): torre, rei, rainha, torre
-- As peças se movem como no xadrez tradicional
-- O objetivo é dar xeque-mate no rei adversário
-- Não há promoção de peões ou movimento especial de roque
+## Implementação
 
-## Estrutura de Arquivos
+O projeto está organizado em três módulos principais:
 
-- `main.py`: Interface gráfica e loop principal do jogo
-- `minichess.py`: Implementação das regras do jogo
-- `ai_player.py`: Implementação da IA com aprendizado de máquina
-- `models/`: Diretório onde o modelo aprendido da IA é salvo
-- `assets/`: Diretório para imagens das peças de xadrez
+- `minichess.py`: Implementa as regras do jogo de xadrez miniatura
+- `ai_player.py`: Implementa a IA com Q-Learning
+- `main.py`: Implementa a interface gráfica e o loop principal do jogo
 
-## Imagens das Peças
-
-As imagens das peças devem ser nomeadas da seguinte forma:
-- `white-pawn.png` - Peão branco
-- `white-rook.png` - Torre branca
-- `white-queen.png` - Rainha branca
-- `white-king.png` - Rei branco
-- `black-pawn.png` - Peão preto
-- `black-rook.png` - Torre preta
-- `black-queen.png` - Rainha preta
-- `black-king.png` - Rei preto 
+Os modelos aprendidos são salvos automaticamente em arquivos pickle no diretório `models/`. 
