@@ -147,8 +147,10 @@ class MiniChess:
         # Primeiro obtemos os movimentos básicos
         valid_moves = self.get_basic_moves(position)
         
-        # Se estivermos ignorando a regra do xeque, retornamos todos os movimentos básicos
-        if self.ignore_check_rule and self.get_piece_color(self.board[position[0]][position[1]]) == 'b':
+        # Se estivermos ignorando a regra do xeque para a IA (peças pretas) ou se forem peças brancas (jogador humano)
+        # retornamos todos os movimentos básicos
+        piece_color = self.get_piece_color(self.board[position[0]][position[1]])
+        if (self.ignore_check_rule and piece_color == 'b') or piece_color == 'w':
             return valid_moves
         
         # Filtra movimentos que deixariam o rei em xeque
