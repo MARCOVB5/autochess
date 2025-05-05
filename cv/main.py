@@ -117,7 +117,246 @@ def createPattern(img, yellow_range=None, green_range=None):
     kernel = np.ones((2, 2), np.uint8)
     imgCanny = cv2.dilate(imgCanny, kernel, iterations=1)
     
-    return imgCanny, pieces_mask, img_display
+    return imgCanny, pieces_mask, img_display, board_mask
+
+def detectBoardAndSquares(img, board_mask):
+    """
+    Detecta o tabuleiro de xadrez, aplica transformação de perspectiva e divide em 16 quadrantes.
+    
+    Args:
+        img: Imagem original
+        board_mask: Máscara do tabuleiro (quadrados verdes e amarelos)
+    
+    Returns:
+        warped_board: Imagem do tabuleiro com perspectiva corrigida
+        squares: Lista de 16 ROIs (4x4) representando cada casa do tabuleiro
+        M: Matriz de transformação usada
+        board_corners: Coordenadas dos 4 cantos do tabuleiro
+    """
+    # Encontrar contornos do tabuleiro na máscara
+    contours, _ = cv2.findContours(board_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # Filtrar para encontrar o contorno do tabuleiro (o maior contorno)
+    board_contour = max(contours, key=cv2.contourArea) if contours else None
+    
+    if board_contour is None:
+        print("❌ Falha ao detectar o tabuleiro")
+        return None, [], None, []
+    
+    # Aproximar o contorno do tabuleiro para um polígono
+    epsilon = 0.02 * cv2.arcLength(board_contour, True)
+    approx = cv2.approxPolyDP(board_contour, epsilon, True)
+    
+    # Verificar se o polígono tem 4 vértices (aproximação de um quadrilátero)
+    if len(approx) != 4:
+        # Se não encontrou exatamente 4 cantos, tentar encontrar os 4 cantos do retângulo delimitador
+        x, y, w, h = cv2.boundingRect(board_contour)
+        approx = np.array([
+            [x, y],
+            [x + w, y],
+            [x + w, y + h],
+            [x, y + h]
+        ], dtype=np.float32).reshape(-1, 1, 2)
+    
+    # Ordenar os pontos para garantir consistência [top-left, top-right, bottom-right, bottom-left]
+    approx = approx.reshape(4, 2)
+    
+    # Calcular o centro de massa
+    center = np.mean(approx, axis=0)
+    
+    # Ordenar os pontos baseado na posição relativa ao centro
+    ordered_points = []
+    for pt in approx:
+        # Classificar baseado no quadrante em relação ao centro
+        if pt[0] < center[0] and pt[1] < center[1]:
+            ordered_points.append((0, pt))  # top-left
+        elif pt[0] > center[0] and pt[1] < center[1]:
+            ordered_points.append((1, pt))  # top-right
+        elif pt[0] > center[0] and pt[1] > center[1]:
+            ordered_points.append((2, pt))  # bottom-right
+        else:
+            ordered_points.append((3, pt))  # bottom-left
+    
+    # Ordenar pelos índices e extrair os pontos
+    ordered_points.sort(key=lambda x: x[0])
+    src_points = np.array([pt[1] for pt in ordered_points], dtype=np.float32)
+    
+    # Definir as dimensões do tabuleiro transformado (um quadrado para manter a proporção)
+    board_size = 400  # tamanho em pixels do tabuleiro transformado
+    dst_points = np.array([
+        [0, 0],
+        [board_size, 0],
+        [board_size, board_size],
+        [0, board_size]
+    ], dtype=np.float32)
+    
+    # Calcular a matriz de transformação de perspectiva
+    M = cv2.getPerspectiveTransform(src_points, dst_points)
+    
+    # Aplicar a transformação de perspectiva
+    warped_board = cv2.warpPerspective(img, M, (board_size, board_size))
+    
+    # Dividir o tabuleiro em 16 quadrantes (4x4)
+    square_size = board_size // 4
+    squares = []
+    for row in range(4):
+        for col in range(4):
+            # Extrair o quadrante
+            x1 = col * square_size
+            y1 = row * square_size
+            square_roi = warped_board[y1:y1 + square_size, x1:x1 + square_size]
+            squares.append((square_roi, (row, col), (x1, y1, square_size, square_size)))
+    
+    return warped_board, squares, M, src_points
+
+def analyzeSquare(square_roi, templates):
+    """
+    Analisa um quadrante do tabuleiro e verifica se há peça e identifica seu tipo/cor.
+    
+    Args:
+        square_roi: Imagem do quadrante do tabuleiro
+        templates: Dicionário de templates para identificação de peças
+    
+    Returns:
+        has_piece: Booleano indicando se o quadrante contém uma peça
+        piece_color: Cor da peça ('White', 'Black' ou None)
+        piece_type: Tipo da peça (King, Queen, Tower, Pawn, Unknown ou None)
+        confidence: Nível de confiança na identificação
+    """
+    # Converter para HSV para análise de cor
+    hsv_roi = cv2.cvtColor(square_roi, cv2.COLOR_BGR2HSV)
+    
+    # Criar uma máscara circular para analisar apenas o centro do quadrante
+    h, w = square_roi.shape[:2]
+    center_x, center_y = w // 2, h // 2
+    radius = min(w, h) // 3  # Um terço da largura/altura
+    
+    mask = np.zeros((h, w), dtype=np.uint8)
+    cv2.circle(mask, (center_x, center_y), radius, 255, -1)
+    
+    # Extrair região central do quadrante
+    masked_roi = cv2.bitwise_and(square_roi, square_roi, mask=mask)
+    
+    # Converter para escala de cinza para análise de presença
+    gray = cv2.cvtColor(masked_roi, cv2.COLOR_BGR2GRAY)
+    
+    # Contar pixels não-zero na região central
+    non_zero_pixels = cv2.countNonZero(gray)
+    
+    # Verificar se há peça (baseado na quantidade de pixels não-zero)
+    piece_threshold = (radius ** 2) * 0.3  # 30% da área do círculo
+    has_piece = non_zero_pixels > piece_threshold
+    
+    if not has_piece:
+        return False, None, None, 0.0
+    
+    # Redimensionar o quadrante para tamanho padrão para análise
+    standard_size = (64, 64)
+    resized_roi = cv2.resize(square_roi, standard_size)
+    
+    # Identificar a cor da peça
+    piece_color, text_color, symbol_color, avg_value, debug_info = identify_piece_color(resized_roi, mask)
+    
+    # Identificar o tipo da peça
+    piece_type, confidence = identify_piece_type_template_matching(resized_roi, piece_color, mask, templates)
+    
+    return True, piece_color, piece_type, confidence
+
+def processChessboard(img, templates):
+    """
+    Processa o tabuleiro de xadrez usando a abordagem de quadrantes fixos.
+    
+    Args:
+        img: Imagem original do tabuleiro
+        templates: Dicionário de templates para identificação de peças
+    
+    Returns:
+        result_img: Imagem original com anotações
+        warped_annotated: Tabuleiro com perspectiva corrigida e anotações
+        board_state: Matriz 4x4 com o estado do tabuleiro (peças em cada posição)
+    """
+    # Processar a imagem para obter as máscaras
+    edges, pieces_mask, initial_detection, board_mask = createPattern(img)
+    
+    # Detectar o tabuleiro e dividir em quadrantes
+    warped_board, squares, transform_matrix, board_corners = detectBoardAndSquares(img, board_mask)
+    
+    if warped_board is None:
+        print("❌ Falha ao processar o tabuleiro")
+        return img, None, None
+    
+    # Criar cópias para anotação
+    result_img = img.copy()
+    warped_annotated = warped_board.copy()
+    
+    # Matriz 4x4 para armazenar o estado do tabuleiro
+    board_state = [[None for _ in range(4)] for _ in range(4)]
+    
+    # Processar cada quadrante
+    for square_data in squares:
+        square_roi, (row, col), (x1, y1, square_size, square_size) = square_data
+        
+        # Analisar o quadrante
+        has_piece, piece_color, piece_type, confidence = analyzeSquare(square_roi, templates)
+        
+        # Armazenar informações na matriz do tabuleiro
+        if has_piece:
+            board_state[row][col] = {
+                'color': piece_color,
+                'type': piece_type,
+                'confidence': confidence
+            }
+            
+            # Anotar no tabuleiro transformado
+            label = f"{piece_color[0]}{piece_type[0]}"
+            cv2.putText(warped_annotated, label, 
+                       (x1 + 5, y1 + 20), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
+                       (0, 255, 255) if piece_color == "White" else (0, 0, 255), 
+                       2)
+            
+            # Desenhar um círculo para marcar a peça
+            center_x, center_y = x1 + square_size // 2, y1 + square_size // 2
+            cv2.circle(warped_annotated, (center_x, center_y), square_size // 3, 
+                      (0, 255, 0), 2)
+            
+            # Adicionar indicador de confiança
+            conf_text = f"{confidence:.2f}"
+            cv2.putText(warped_annotated, conf_text, 
+                       (x1 + 5, y1 + square_size - 5), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, 
+                       (255, 255, 255), 
+                       1)
+    
+    # Desenhar grid no tabuleiro transformado
+    square_size = warped_board.shape[0] // 4
+    for i in range(1, 4):
+        # Linhas horizontais
+        cv2.line(warped_annotated, (0, i * square_size), 
+                (warped_board.shape[1], i * square_size), 
+                (200, 200, 200), 1)
+        # Linhas verticais
+        cv2.line(warped_annotated, (i * square_size, 0), 
+                (i * square_size, warped_board.shape[0]), 
+                (200, 200, 200), 1)
+    
+    # Desenhar os cantos do tabuleiro na imagem original
+    for i, corner in enumerate(board_corners):
+        cv2.circle(result_img, (int(corner[0]), int(corner[1])), 10, (0, 255, 0), -1)
+        cv2.putText(result_img, str(i), (int(corner[0])+15, int(corner[1])),
+                   cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
+    
+    # Estatísticas para adicionar à imagem original
+    white_pieces = sum(1 for row in board_state for cell in row if cell and cell['color'] == 'White')
+    black_pieces = sum(1 for row in board_state for cell in row if cell and cell['color'] == 'Black')
+    
+    # Adicionar estatísticas à imagem
+    cv2.putText(result_img, f"White: {white_pieces}", (20, 30), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    cv2.putText(result_img, f"Black: {black_pieces}", (20, 60), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    
+    return result_img, warped_annotated, board_state
 
 def enhanceSymbols(roi, piece_color):
     """Enhance the symbols on chess pieces using image processing techniques"""
@@ -336,7 +575,8 @@ def identify_piece_color(roi, piece_mask):
 
 def identify_piece_type(roi, piece_color):
     """
-    Identifica o tipo de peça (rei, rainha, torre, peão) com base na forma do símbolo.
+    Identifica o tipo da peça (King, Queen, Tower, Pawn) usando análise geométrica.
+    Esta função é usada como fallback quando o template matching falha.
     
     Args:
         roi: Região da imagem contendo a peça
@@ -346,7 +586,7 @@ def identify_piece_type(roi, piece_color):
         piece_type: Tipo da peça identificado
         confidence: Nível de confiança na identificação (0-1)
     """
-    # Aplicar pré-processamento para destacar o símbolo
+    # Processar a região de interesse para destacar o símbolo
     symbol = enhanceSymbols(roi, piece_color)
     
     # Encontrar contornos do símbolo
@@ -364,60 +604,340 @@ def identify_piece_type(roi, piece_color):
     if area < 10:
         return "Unknown", 0.0
     
-    # Calcular características de forma do contorno
-    # Perímetro
+    # Extrair características do símbolo detectado
     perimeter = cv2.arcLength(main_contour, True)
-    # Dimensões do retângulo delimitador
     x, y, w, h = cv2.boundingRect(main_contour)
-    # Proporção largura/altura
     aspect_ratio = float(w) / h if h > 0 else 0
-    # Extensão - Razão entre área do contorno e área do retângulo
     extent = float(area) / (w * h) if (w * h) > 0 else 0
-    # Solidez - Razão entre área do contorno e área do invólucro convexo
+    
+    # Calcular solidez (solidity)
     hull = cv2.convexHull(main_contour)
     hull_area = cv2.contourArea(hull)
     solidity = float(area) / hull_area if hull_area > 0 else 0
     
-    # Extrair momentos
-    M = cv2.moments(main_contour)
-    # Centroide
-    cx = int(M['m10'] / M['m00']) if M['m00'] != 0 else 0
-    cy = int(M['m01'] / M['m00']) if M['m00'] != 0 else 0
+    # Classificar peças com base em características geométricas
+    # Valores baseados em observação empírica
     
-    # Classificar o tipo de peça com base nas características
-    confidence = 0.5  # Confiança inicial média
+    # KING: Geralmente tem uma cruz na parte superior
+    # Características: Proporção próxima de 1 (quase quadrado), solidez média
+    if 0.8 < aspect_ratio < 1.2 and 0.6 < solidity < 0.85:
+        return "King", 0.7
     
-    # Características específicas de cada tipo
-    # Rei - tipicamente tem uma cruz no topo
-    # Rainha - tipicamente tem uma coroa ou estrutura mais larga no topo
-    # Torre - formato retangular/quadrado
-    # Peão - formato simples, geralmente mais circular ou oval
+    # QUEEN: Geralmente tem uma coroa com pontas na parte superior
+    # Características: Proporção mais alta que o rei, solidez menor devido às pontas
+    elif 0.9 < aspect_ratio < 1.4 and 0.5 < solidity < 0.75:
+        return "Queen", 0.6
     
-    # Classificar com base na proporção e extensão
-    if aspect_ratio > 0.85 and aspect_ratio < 1.15 and extent < 0.6:
-        # Formato mais quadrado, típico de torre
-        piece_type = "Tower"
-        confidence = 0.7
-    elif aspect_ratio < 0.7 and solidity > 0.8:
-        # Formato mais alto do que largo, típico de peão
-        piece_type = "Pawn"
-        confidence = 0.7
-    elif solidity < 0.7 and aspect_ratio > 0.7 and aspect_ratio < 1.3:
-        # Formato com recortes (baixa solidez), típico de rei
-        piece_type = "King"
-        confidence = 0.7
-    elif aspect_ratio > 0.7 and aspect_ratio < 1.3 and solidity > 0.7:
-        # Formato proporcional e mais sólido, típico de rainha
-        piece_type = "Queen"
-        confidence = 0.6
-    else:
-        # Caso não consiga determinar com certeza
-        piece_type = "Unknown"
-        confidence = 0.3
+    # TOWER (Rook): Forma mais retangular e compacta
+    # Características: Proporção próxima de 1 (mais quadrado), solidez alta (forma compacta)
+    elif 0.7 < aspect_ratio < 1.1 and solidity > 0.8:
+        return "Tower", 0.7
     
-    return piece_type, confidence
+    # PAWN: Forma mais simples e geralmente menor
+    # Características: Proporção variável, solidez alta
+    elif solidity > 0.75:
+        return "Pawn", 0.6
+    
+    # Se não conseguiu classificar com confiança
+    return "Unknown", 0.4
 
-def detectChessPieces(img, pieces_mask, contours=None):
+def load_piece_templates():
+    """
+    Carrega as imagens de referência dos símbolos das peças do diretório assets
+    e extrai características para comparação.
+    
+    Returns:
+        Um dicionário de templates e características para cada tipo de peça
+    """
+    assets_dir = "assets"
+    templates = {}
+    
+    # Verificar se o diretório existe
+    if not os.path.exists(assets_dir):
+        print(f"⚠️ Diretório de assets não encontrado: {assets_dir}")
+        print(f"   Usando classificação baseada em geometria.")
+        return None
+    
+    # Mapear nomes de arquivos para tipos de peças
+    type_mapping = {
+        "king": "King",
+        "queen": "Queen",
+        "rook": "Rook",
+        "pawn": "Pawn"
+    }
+    
+    # Carregar cada imagem de referência
+    try:
+        for color in ["white", "black"]:
+            templates[color] = {}
+            
+            for piece_type in type_mapping.keys():
+                filename = f"{color}-{piece_type}.png"
+                filepath = os.path.join(assets_dir, filename)
+                
+                if os.path.exists(filepath):
+                    # Carregar a imagem
+                    img = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
+                    if img is None:
+                        continue
+                    
+                    # Limiarizar para garantir preto e branco puro
+                    _, binary = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
+                    
+                    # CORREÇÃO: Corrigir a forma como findContours é chamado
+                    # Alterar de:
+                    # contours, _ = cv2.findContours(binary, cv2.THRESH_BINARY_INV if color == "white" else cv2.THRESH_BINARY, 
+                    #                              cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    # Para:
+                    if color == "white":
+                        # Invertemos primeiro a imagem para branco em fundo preto
+                        binary_inv = cv2.bitwise_not(binary)
+                        contours, _ = cv2.findContours(binary_inv, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    else:
+                        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    
+                    # Extrair características se encontrar contornos
+                    if contours:
+                        main_contour = max(contours, key=cv2.contourArea)
+                        area = cv2.contourArea(main_contour)
+                        
+                        if area > 0:
+                            # Calcular características
+                            perimeter = cv2.arcLength(main_contour, True)
+                            x, y, w, h = cv2.boundingRect(main_contour)
+                            aspect_ratio = float(w) / h if h > 0 else 0
+                            extent = float(area) / (w * h) if (w * h) > 0 else 0
+                            
+                            # Invólucro convexo e solidez
+                            hull = cv2.convexHull(main_contour)
+                            hull_area = cv2.contourArea(hull)
+                            solidity = float(area) / hull_area if hull_area > 0 else 0
+                            
+                            # Momento de Hu para análise de forma invariante
+                            moments = cv2.moments(main_contour)
+                            hu_moments = cv2.HuMoments(moments)
+                            
+                            # Armazenar características e imagem de referência
+                            mapped_type = type_mapping[piece_type]
+                            templates[color][mapped_type] = {
+                                'binary': binary,
+                                'contour': main_contour,
+                                'area': area,
+                                'perimeter': perimeter,
+                                'aspect_ratio': aspect_ratio,
+                                'extent': extent,
+                                'solidity': solidity,
+                                'hu_moments': hu_moments,
+                                'w': w,
+                                'h': h,
+                                'original_image': img  # Guardar a imagem original para matching direto
+                            }
+                            
+                            print(f"✅ Carregado template para {color} {mapped_type}")
+                            print(f"   Proporção: {aspect_ratio:.2f}, Solidez: {solidity:.2f}")
+        
+        # Verificar se carregou todos os templates
+        if templates['white'] and templates['black'] and len(templates['white']) > 0 and len(templates['black']) > 0:
+            print(f"✅ Carregados {len(templates['white'])} templates brancos e {len(templates['black'])} templates pretos")
+            return templates
+        else:
+            return None
+    except Exception as e:
+        print(f"⚠️ Erro ao carregar templates: {str(e)}")
+        return None
+
+def identify_piece_type_template_matching(roi, piece_color, piece_mask, templates):
+    """
+    Identifica o tipo de peça usando correspondência de templates e características.
+    MELHORADO: Agora testa peças em múltiplas rotações para maior robustez.
+    
+    Args:
+        roi: Região da imagem contendo a peça
+        piece_color: Cor da peça ('Black' ou 'White')
+        piece_mask: Máscara da peça
+        templates: Dicionário de templates de referência
+    
+    Returns:
+        piece_type: Tipo da peça identificado
+        confidence: Nível de confiança na identificação (0-1)
+    """
+    if templates is None:
+        # Fallback para o método baseado em geometria se não tiver templates
+        return identify_piece_type(roi, piece_color)
+    
+    # Processar a região de interesse para destacar o símbolo
+    symbol = enhanceSymbols(roi, piece_color)
+    
+    # Encontrar contornos do símbolo
+    contours, _ = cv2.findContours(symbol, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # Se não encontrou contornos, retornar tipo desconhecido
+    if not contours:
+        return "Unknown", 0.0
+    
+    # Obter o maior contorno (principal parte do símbolo)
+    main_contour = max(contours, key=cv2.contourArea)
+    area = cv2.contourArea(main_contour)
+    
+    # Se a área for muito pequena, pode não ser um símbolo válido
+    if area < 10:
+        return "Unknown", 0.0
+    
+    # Extrair características do símbolo detectado
+    perimeter = cv2.arcLength(main_contour, True)
+    x, y, w, h = cv2.boundingRect(main_contour)
+    aspect_ratio = float(w) / h if h > 0 else 0
+    extent = float(area) / (w * h) if (w * h) > 0 else 0
+    
+    # Calcular solidez (solidity)
+    hull = cv2.convexHull(main_contour)
+    hull_area = cv2.contourArea(hull)
+    solidity = float(area) / hull_area if hull_area > 0 else 0
+    
+    # Calcular momentos Hu para comparação de forma
+    moments = cv2.moments(main_contour)
+    hu_moments = cv2.HuMoments(moments)
+    
+    # Converter cor do formato "Black"/"White" para "black"/"white" para corresponder ao dicionário
+    color_key = piece_color.lower()
+    
+    # MÉTODO APRIMORADO DE TEMPLATE MATCHING UTILIZANDO MÚLTIPLAS ABORDAGENS
+    
+    # 1. Método de correspondência direta com template
+    # Redimensionar o símbolo para um tamanho padrão para facilitar a comparação
+    standard_size = (64, 64)
+    resized_symbol = cv2.resize(symbol, standard_size)
+    
+    # MELHORIA: Criar versões rotacionadas do símbolo para testar múltiplas orientações
+    # Rotacionar o símbolo em 180 graus (como mencionado pelo usuário que a câmera está invertida)
+    rotated_symbol = cv2.rotate(resized_symbol, cv2.ROTATE_180)
+    
+    # Dicionário para armazenar pontuações de similaridade
+    scores = {}
+    best_match = "Unknown"
+    best_score = 0.0
+    best_orientation = "normal"  # Para debug
+    
+    # Pesos para diferentes características
+    weights = {
+        'template_match': 0.5,  # Correspondência direta de template (aumentado o peso)
+        'aspect_ratio': 0.15,   # Proporção largura/altura
+        'solidity': 0.15,       # Solidez (área/área do invólucro convexo)
+        'hu_moments': 0.2       # Momentos de Hu (invariantes a escala/rotação)
+    }
+    
+    # Penalidades específicas para evitar falsos positivos de Torre
+    tower_penalty = 0.2  # Penalidade quando o candidato é Torre para evitar superidentificação
+    
+    # Para testes/depuração - exibir informações
+    debug_info = []
+    
+    # Comparar com cada template disponível
+    for piece_type, template in templates[color_key].items():
+        # Redimensionar o template para o mesmo tamanho padrão
+        if 'original_image' in template:
+            template_img = template['original_image']
+            resized_template = cv2.resize(template_img, standard_size)
+            
+            # Inverter ou não dependendo da cor (para garantir que estamos comparando símbolos semelhantes)
+            if (piece_color == "Black" and np.mean(resized_template) > 127) or \
+               (piece_color == "White" and np.mean(resized_template) < 127):
+                resized_template = 255 - resized_template
+            
+            # MELHORIA: Testar DUAS orientações (normal e rotacionada 180 graus)
+            # Orientação 1: Normal
+            result1 = cv2.matchTemplate(resized_symbol, resized_template, cv2.TM_CCOEFF_NORMED)
+            _, template_score1, _, _ = cv2.minMaxLoc(result1)
+            
+            # Orientação 2: Rotacionada 180 graus
+            result2 = cv2.matchTemplate(rotated_symbol, resized_template, cv2.TM_CCOEFF_NORMED)
+            _, template_score2, _, _ = cv2.minMaxLoc(result2)
+            
+            # Usar a melhor orientação
+            if template_score1 > template_score2:
+                template_match_score = template_score1
+                used_orientation = "normal"
+            else:
+                template_match_score = template_score2
+                used_orientation = "rotated"
+            
+            # Normalizar para 0-1
+            template_match_score = max(0, template_match_score)
+        else:
+            template_match_score = 0.5  # Valor neutro se não tiver imagem original
+            used_orientation = "N/A"
+        
+        # 2. Similaridade de proporção (aspect ratio)
+        aspect_diff = 1.0 - min(abs(aspect_ratio - template['aspect_ratio']) / max(template['aspect_ratio'], 0.01), 1.0)
+        
+        # 3. Similaridade de solidez (solidity)
+        solidity_diff = 1.0 - min(abs(solidity - template['solidity']) / max(template['solidity'], 0.01), 1.0)
+        
+        # 4. Similaridade de momentos Hu (invariantes à escala, rotação e translação)
+        hu_diff = 0.0
+        for i in range(min(len(hu_moments), len(template['hu_moments']))):
+            # Usar diferença logarítmica para momentos Hu
+            if hu_moments[i][0] != 0 and template['hu_moments'][i][0] != 0:
+                hu_diff += abs(np.log(abs(hu_moments[i][0])) - np.log(abs(template['hu_moments'][i][0])))
+        
+        # Normalizar e inverter a diferença Hu para obter similaridade (0-1)
+        hu_similarity = max(0.0, 1.0 - min(hu_diff / 15.0, 1.0))  # Valor 15.0 é empírico
+        
+        # Combinação ponderada das similaridades
+        score = (weights['template_match'] * template_match_score + 
+                 weights['aspect_ratio'] * aspect_diff + 
+                 weights['solidity'] * solidity_diff + 
+                 weights['hu_moments'] * hu_similarity)
+        
+        # Aumentar a confiança das peças King e Queen pois são mais distintivas
+        if piece_type == "King" or piece_type == "Queen":
+            score *= 1.1  # Bônus de 10%
+        
+        # Aplicar penalidade para Tower/Rook para evitar falsos positivos
+        if piece_type == "Rook" or piece_type == "Tower":
+            score -= tower_penalty
+        
+        # Para depuração
+        debug_info.append({
+            'type': piece_type,
+            'template_match': template_match_score,
+            'orientation': used_orientation,
+            'aspect': aspect_diff,
+            'solidity': solidity_diff,
+            'hu': hu_similarity,
+            'final_score': score
+        })
+        
+        # Armazenar pontuação
+        scores[piece_type] = score
+        
+        # Atualizar melhor correspondência
+        if score > best_score:
+            best_score = score
+            best_match = piece_type
+            best_orientation = used_orientation
+    
+    # Exibir informações de depuração para ajudar a ajustar o algoritmo
+    # print(f"DEBUG - Peça {piece_color} - Melhor: {best_match} ({best_score:.2f}) - Orientação: {best_orientation}")
+    
+    # Corrigir nomes (Rook -> Tower para manter compatibilidade)
+    if best_match == "Rook":
+        best_match = "Tower"
+    
+    # Converter pontuação para confiança (ajustar para dar valores mais realistas)
+    confidence = min(1.0, max(0.0, best_score))
+    
+    # Se a confiança for muito baixa, usar o método de fallback
+    if confidence < 0.4:
+        fallback_type, fallback_conf = identify_piece_type(roi, piece_color)
+        
+        # Só usar o fallback se ele tiver uma confiança melhor
+        if fallback_conf > confidence + 0.1:  # Adicionar margem para preferir o template matching
+            return fallback_type, fallback_conf
+    
+    return best_match, confidence
+
+def detectChessPieces(img, pieces_mask, contours=None, templates=None):
     """
     Detecta peças de xadrez e suas cores na imagem.
     
@@ -425,6 +945,7 @@ def detectChessPieces(img, pieces_mask, contours=None):
         img: Imagem original
         pieces_mask: Máscara com as peças detectadas
         contours: Lista de contornos de peças pré-detectadas (opcional)
+        templates: Dicionário de templates de referência (opcional)
     
     Returns:
         result_img: Imagem com as peças identificadas
@@ -474,7 +995,7 @@ def detectChessPieces(img, pieces_mask, contours=None):
             piece_color, text_color, symbol_color, avg_value, debug_info = identify_piece_color(roi, piece_circle_mask)
             
             # Identificar o tipo da peça
-            piece_type, type_confidence = identify_piece_type(roi, piece_color)
+            piece_type, type_confidence = identify_piece_type_template_matching(roi, piece_color, piece_circle_mask, templates)
             
             # Incrementar o contador para este tipo de peça
             piece_types[piece_type] += 1
@@ -784,7 +1305,7 @@ def main():
     
     # Process frame with the customized parameters
     print("\n=== PROCESSANDO IMAGEM ===")
-    edges, pieces_mask, initial_detection = createPattern(frame, yellow_range, green_range)
+    edges, pieces_mask, initial_detection, board_mask = createPattern(frame, yellow_range, green_range)
     
     # Visualizar detecção de peças
     valid_contours = []
@@ -839,7 +1360,7 @@ def main():
                     
                     # Desenhar círculo na imagem de visualização
                     cv2.circle(hough_viz, center, radius, (0, 255, 0), 2)
-                    
+                
                 # Mostrar visualização Hough
                 cv2.imshow("Hough Circle Detection", hough_viz)
                 
@@ -850,8 +1371,11 @@ def main():
                 # Atualizar a visualização
                 piece_detection_viz, _ = visualize_detection(frame, pieces_mask)
     
+    # Carregar templates das peças de xadrez
+    templates = load_piece_templates()
+    
     # Detect chess pieces and their colors
-    piece_detection, symbols_only = detectChessPieces(frame, pieces_mask, valid_contours)
+    piece_detection, symbols_only = detectChessPieces(frame, pieces_mask, valid_contours, templates)
     
     # Create a 2x2 grid display (resize each to half size for better viewing)
     h, w = frame.shape[:2]
@@ -968,7 +1492,7 @@ def main():
                 if len(masked_pixels) > 0:
                     # Identificar cor e tipo da peça
                     piece_color, _, _, avg_value, debug_info = identify_piece_color(roi, piece_circle_mask)
-                    piece_type, type_confidence = identify_piece_type(roi, piece_color)
+                    piece_type, type_confidence = identify_piece_type_template_matching(roi, piece_color, piece_circle_mask, templates)
                     
                     # Estatísticas
                     avg_value = np.mean(masked_pixels[:, 2])
