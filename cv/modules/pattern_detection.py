@@ -4,6 +4,7 @@ Módulo para detecção de padrões do tabuleiro de xadrez 4x4
 import cv2
 import numpy as np
 import os
+from .improved_detect_piece_in_square import improved_detect_piece_in_square
 
 # Variável global para armazenar a imagem de referência do tabuleiro vazio
 empty_board_reference = None
@@ -531,8 +532,8 @@ def process_board_image(img):
     # Para cada quadrado, verificar se tem peça
     for square in squares:
         # Detectar peça usando subtração de fundo e classificar por HSV
-        contains_piece, piece_color, piece_info = detect_piece_in_square(square['image'], square['position'])
-        
+        #contains_piece, piece_color, piece_info = detect_piece_in_square(square['image'], square['position'])
+        contains_piece, piece_color, piece_type, piece_info = improved_detect_piece_in_square(square['image'], square['position'])
         # Atualizar informações da peça
         square['contains_piece'] = contains_piece
         square['piece_color'] = piece_color
