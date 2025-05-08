@@ -12,7 +12,7 @@ from modules.utils import analyze_reference_pieces
 def main():
     # Configurar o parser de argumentos
     parser = argparse.ArgumentParser(description='Análise de tabuleiro de xadrez 4x4')
-    parser.add_argument('--image', type=str, default="assets/chessboard_allpieces.jpg",
+    parser.add_argument('--image', type=str, default="assets/testing-chessboards/chessboard_allpieces.jpg",
                         help='Caminho para a imagem do tabuleiro (padrão: chessboard_allpieces.png)')
     
     # Opção para salvar automaticamente as imagens intermediárias

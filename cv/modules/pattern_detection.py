@@ -10,7 +10,7 @@ from .improved_detect_piece_in_square import improved_detect_piece_in_square
 empty_board_reference = None
 empty_board_squares = None
 
-def load_empty_board_reference(reference_path="assets/chessboard_nopieces.png"):
+def load_empty_board_reference(reference_path="assets/testing-chessboards/chessboard_nopieces.png"):
     """
     Carrega a imagem de referência do tabuleiro vazio e a prepara para uso na detecção de peças.
     

@@ -5,42 +5,6 @@ import cv2
 import numpy as np
 import os
 
-def enhanceSymbols(roi, piece_color):
-    """Enhance the symbols on chess pieces using image processing techniques"""
-    # Increase contrast
-    lab = cv2.cvtColor(roi, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-    cl = clahe.apply(l)
-    enhanced_lab = cv2.merge((cl, a, b))
-    enhanced_roi = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
-    
-    # Convert to grayscale
-    gray = cv2.cvtColor(enhanced_roi, cv2.COLOR_BGR2GRAY)
-    
-    # Apply Gaussian blur to reduce noise
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    
-    # Different threshold parameters based on piece color
-    if piece_color == "Black":
-        # For black pieces with white background, we're looking for dark symbols on light background
-        threshold = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                        cv2.THRESH_BINARY_INV, 11, 4)
-    else:
-        # For white pieces with black background, we're looking for light symbols on dark background
-        threshold = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                        cv2.THRESH_BINARY, 11, 4)
-    
-    # Apply morphological operations to enhance the symbols
-    kernel = np.ones((2, 2), np.uint8)
-    enhanced = cv2.morphologyEx(threshold, cv2.MORPH_CLOSE, kernel)
-    enhanced = cv2.morphologyEx(enhanced, cv2.MORPH_OPEN, kernel)
-    
-    # Further dilate the symbols to make them more visible
-    enhanced = cv2.dilate(enhanced, kernel, iterations=1)
-    
-    return enhanced
-
 def identify_piece_color(roi, piece_mask):
     """
     Identifica a cor da peça com base nas estatísticas aprendidas das peças de referência.
@@ -120,73 +84,6 @@ def identify_piece_color(roi, piece_mask):
         # Caso não haja pixels válidos
         return "Unknown", (255, 255, 255), [0, 255, 0], 0, {}
 
-def identify_piece_type(roi, piece_color):
-    """
-    Identifica o tipo da peça (King, Queen, Tower, Pawn) usando análise geométrica.
-    Esta função é usada como fallback quando o template matching falha.
-    
-    Args:
-        roi: Região da imagem contendo a peça
-        piece_color: Cor da peça ('Black' ou 'White')
-    
-    Returns:
-        piece_type: Tipo da peça identificado
-        confidence: Nível de confiança na identificação (0-1)
-    """
-    # Processar a região de interesse para destacar o símbolo
-    symbol = enhanceSymbols(roi, piece_color)
-    
-    # Encontrar contornos do símbolo
-    contours, _ = cv2.findContours(symbol, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    # Se não encontrou contornos, retornar tipo desconhecido
-    if not contours:
-        return "Unknown", 0.0
-    
-    # Obter o maior contorno (principal parte do símbolo)
-    main_contour = max(contours, key=cv2.contourArea)
-    area = cv2.contourArea(main_contour)
-    
-    # Se a área for muito pequena, pode não ser um símbolo válido
-    if area < 10:
-        return "Unknown", 0.0
-    
-    # Extrair características do símbolo detectado
-    perimeter = cv2.arcLength(main_contour, True)
-    x, y, w, h = cv2.boundingRect(main_contour)
-    aspect_ratio = float(w) / h if h > 0 else 0
-    extent = float(area) / (w * h) if (w * h) > 0 else 0
-    
-    # Calcular solidez (solidity)
-    hull = cv2.convexHull(main_contour)
-    hull_area = cv2.contourArea(hull)
-    solidity = float(area) / hull_area if hull_area > 0 else 0
-    
-    # Classificar peças com base em características geométricas
-    # Valores baseados em observação empírica
-    
-    # KING: Geralmente tem uma cruz na parte superior
-    # Características: Proporção próxima de 1 (quase quadrado), solidez média
-    if 0.8 < aspect_ratio < 1.2 and 0.6 < solidity < 0.85:
-        return "King", 0.7
-    
-    # QUEEN: Geralmente tem uma coroa com pontas na parte superior
-    # Características: Proporção mais alta que o rei, solidez menor devido às pontas
-    elif 0.9 < aspect_ratio < 1.4 and 0.5 < solidity < 0.75:
-        return "Queen", 0.6
-    
-    # TOWER (Rook): Forma mais retangular e compacta
-    # Características: Proporção próxima de 1 (mais quadrado), solidez alta (forma compacta)
-    elif 0.7 < aspect_ratio < 1.1 and solidity > 0.8:
-        return "Tower", 0.7
-    
-    # PAWN: Forma mais simples e geralmente menor
-    # Características: Proporção variável, solidez alta
-    elif solidity > 0.75:
-        return "Pawn", 0.6
-    
-    # Se não conseguiu classificar com confiança
-    return "Unknown", 0.4
 
 def load_piece_templates():
     """
