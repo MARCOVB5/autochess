@@ -12,8 +12,6 @@ def piece_detection(square_img):
     Returns:
         contains_piece: Boolean indicating if piece is present
         piece_color: Color of the piece ('white', 'black', or None)
-        piece_type: Type of the piece ('king', 'queen', 'pawn', 'tower', or None)
-        piece_info: Dictionary with additional information
     """
     # Initial info dictionary
     piece_info = {}

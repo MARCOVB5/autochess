@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import argparse
 import os
-from cv.modules.board_processing import process_board_image, visualize_board_and_pieces
+from modules.board_processing import process_board_image, visualize_board_and_pieces
 
 def main():
     # Configurar o parser de argumentos
