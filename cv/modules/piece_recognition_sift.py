@@ -174,12 +174,22 @@ def identify_piece_sift(square_img, templates_dir='cv/assets/pure-assets', expec
     # Create a singleton instance of ChessPieceRecognizer
     if not hasattr(identify_piece_sift, 'recognizer'):
         identify_piece_sift.recognizer = ChessPieceRecognizer(templates_dir)
-    
-    # Process image
+
+    # Process original image
     result = identify_piece_sift.recognizer.identify_piece(square_img, expected_color)
-    
+
+    # If white piece is expected or no good match was found, try with inverted image
+    if (expected_color == 'white' or (result is None or result['score'] < 0.25)) and len(square_img.shape) == 3:
+        # Invert the image colors to match template
+        inverted_img = cv2.bitwise_not(square_img)
+        inverted_result = identify_piece_sift.recognizer.identify_piece(inverted_img, expected_color)
+
+        # If inverted result is better, use it
+        if inverted_result and (result is None or inverted_result['score'] > result['score']):
+            return inverted_result['type'], expected_color, inverted_result['score']
+
     if result:
-        return result['type'], expected_color, result['score'] 
+        return result['type'], expected_color, result['score']
     return None, None, 0
 
 def visualize_sift_match(square_img, templates_dir='cv/assets/pure-assets', expected_color=None):
