@@ -6,6 +6,29 @@ import numpy as np
 import os
 import pickle
 
+def keypoint_to_dict(kp):
+    """Convert OpenCV KeyPoint to dictionary"""
+    return {
+        'pt': kp.pt,
+        'size': kp.size,
+        'angle': kp.angle,
+        'response': kp.response,
+        'octave': kp.octave,
+        'class_id': kp.class_id
+    }
+
+def dict_to_keypoint(kp_dict):
+    """Convert dictionary back to OpenCV KeyPoint"""
+    return cv2.KeyPoint(
+        x=kp_dict['pt'][0],
+        y=kp_dict['pt'][1],
+        size=kp_dict['size'],
+        angle=kp_dict['angle'],
+        response=kp_dict['response'],
+        octave=kp_dict['octave'],
+        class_id=kp_dict['class_id']
+    )
+
 class ChessPieceRecognizer:
     """Class for recognizing chess pieces using SIFT features"""
     
@@ -20,13 +43,7 @@ class ChessPieceRecognizer:
         self.templates = {}
         self.sift = cv2.SIFT_create()
         
-        # Dictionary to map template filenames to piece types
-        self.piece_types = {
-            'king': ['king.png'],
-            'queen': ['queen.png'],
-            'rook': ['rook.png'],
-            'pawn': ['pawn.png']
-        }
+        # instead of a fixed dict, we'll scan every .png in templates_dir
         
         # Load templates and extract SIFT features
         self._load_templates()
@@ -39,48 +56,82 @@ class ChessPieceRecognizer:
         if os.path.exists(cache_file):
             try:
                 with open(cache_file, 'rb') as f:
-                    self.templates = pickle.load(f)
+                    cached_data = pickle.load(f)
+                    # Convert cached data back to original format
+                    self.templates = {}
+                    for filename, data in cached_data.items():
+                        self.templates[filename] = {
+                            'keypoints': [dict_to_keypoint(kp) for kp in data['keypoints']],
+                            'descriptors': data['descriptors'],
+                            'type': data['type'],
+                            'image': data['image']
+                        }
                 print(f"Loaded {len(self.templates)} cached SIFT templates")
                 return
             except Exception as e:
                 print(f"Error loading cached features: {e}")
         
-        # Load templates and extract features
-        for piece_type, filenames in self.piece_types.items():
-            for filename in filenames:
-                template_path = os.path.join(self.templates_dir, filename)
-                
-                if not os.path.exists(template_path):
-                    print(f"Warning: Template {template_path} not found")
+        # Load *all* PNGs in templates_dir (and its 'augmented/' subfolder)
+        all_templates = []
+        for root, _, fnames in os.walk(self.templates_dir):
+            for fname in fnames:
+                if not fname.lower().endswith('.png'):
                     continue
+                all_templates.append(os.path.join(root, fname))
+
+        for template_path in all_templates:
+            filename = os.path.basename(template_path)
+            # infer piece_type from the filename prefix:
+            piece_type = None
+            for pt in ('king','queen','rook','pawn'):
+                if filename.lower().startswith(pt):
+                    piece_type = pt
+                    break
+            if piece_type is None:
+                # skip any PNG that doesn't match our naming convention
+                continue
+
+            if not os.path.exists(template_path):
+                print(f"Warning: Template {template_path} not found")
+                continue
                 
-                # Load template image
-                template = cv2.imread(template_path)
-                if template is None:
-                    print(f"Warning: Failed to load {template_path}")
-                    continue
-                
-                # Convert to grayscale
-                gray_template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-                
-                # Detect SIFT keypoints and descriptors
-                keypoints, descriptors = self.sift.detectAndCompute(gray_template, None)
-                
-                if keypoints and descriptors is not None:
-                    # Store template info (color-agnostic)
-                    self.templates[filename] = {
-                        'keypoints': keypoints,
-                        'descriptors': descriptors,
-                        'type': piece_type,
-                        'image': gray_template
-                    }
-                    print(f"Loaded template: {filename} ({len(keypoints)} keypoints)")
+            # Load template image
+            template = cv2.imread(template_path)
+            if template is None:
+                print(f"Warning: Failed to load {template_path}")
+                continue
+            
+            # Convert to grayscale
+            gray_template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+            
+            # Detect SIFT keypoints and descriptors
+            keypoints, descriptors = self.sift.detectAndCompute(gray_template, None)
+            
+            if keypoints and descriptors is not None:
+                # Store template info (color-agnostic)
+                self.templates[filename] = {
+                    'keypoints': keypoints,
+                    'descriptors': descriptors,
+                    'type': piece_type,
+                    'image': gray_template
+                }
+                print(f"Loaded template: {filename} ({len(keypoints)} keypoints)")
         
         # Save features to cache
         if self.templates:
             try:
+                # Convert keypoints to pickleable format
+                cache_data = {}
+                for filename, data in self.templates.items():
+                    cache_data[filename] = {
+                        'keypoints': [keypoint_to_dict(kp) for kp in data['keypoints']],
+                        'descriptors': data['descriptors'],
+                        'type': data['type'],
+                        'image': data['image']
+                    }
+                
                 with open(cache_file, 'wb') as f:
-                    pickle.dump(self.templates, f)
+                    pickle.dump(cache_data, f)
                 print(f"Cached {len(self.templates)} SIFT templates to {cache_file}")
             except Exception as e:
                 print(f"Error caching features: {e}")
