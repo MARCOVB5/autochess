@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import os
 from .piece_detection import piece_detection
+from .piece_recognition_sift import identify_piece_sift
 
 # Variável global para armazenar a imagem de referência do tabuleiro vazio
 empty_board_reference = None
@@ -221,7 +222,7 @@ def split_board_into_squares(warped_board, rows=4, cols=4):
     
     return squares
 
-def template_match_piece(square_img, templates_dir='cv/assets/pure-assets'):
+def template_match_piece(square_img, templates_dir='./assets/pure-assets'):
     """
     Utiliza template matching para identificar o tipo e cor da peça.
     
@@ -238,8 +239,9 @@ def template_match_piece(square_img, templates_dir='cv/assets/pure-assets'):
     
     # Lista de possíveis templates
     template_files = {
-        'white': ['white-king.png', 'white-queen.png', 'white-rook.png', 'white-pawn.png'],
-        'black': ['black-king.png', 'black-queen.png', 'black-rook.png', 'black-pawn.png']
+        #'white': ['white-king.png', 'white-queen.png', 'white-rook.png', 'white-pawn.png'],
+        #'black': ['black-king.png', 'black-queen.png', 'black-rook.png', 'black-pawn.png']
+        ['king.png', 'queen.png', 'rook.png', 'pawn.png']
     }
     
     best_match = None
@@ -320,21 +322,42 @@ def process_board_image(img):
         square['contains_piece'] = contains_piece
         square['piece_color'] = piece_color
         
-        # Se detectou uma peça mas não conseguiu classificar a cor, tentar template matching
-        if contains_piece and piece_color is None:
-            # Tentar template matching para confirmar a cor
-            template_color, confidence = template_match_piece(square['image'])
+        # Se a peça foi detectada, tentar identificar seu tipo usando SIFT
+        if contains_piece:
+            # Usar a cor detectada como dica para o reconhecimento SIFT
+            piece_type, sift_color, confidence = identify_piece_sift(
+                square['image'], 
+                templates_dir='./assets/pure-assets',
+                expected_color=piece_color
+            )
             
-            # Armazenar informações de template matching
-            square['template_match'] = {
-                'color': template_color,
-                'confidence': confidence
-            }
+            # Criar dicionário de informações da peça se não existir
+            if 'piece_info' not in square:
+                square['piece_info'] = {}
+                
+            # Armazenar resultados do SIFT
+            square['piece_info']['type'] = piece_type
+            square['piece_info']['sift_confidence'] = confidence
             
-            # Se o template matching tiver boa confiança, usar sua classificação
-            if template_color and confidence > 0.6:
-                square['piece_color'] = template_color
-                square['piece_info']['template_confidence'] = confidence
+            # Se o SIFT identificou uma cor com alta confiança, atualizar piece_color
+            if sift_color and confidence > 0.3 and (piece_color is None or confidence > 0.6):
+                square['piece_color'] = sift_color
+            
+            # Se ainda não conseguimos classificar a peça, tentar template matching como fallback
+            if piece_color is None and (piece_type is None or confidence < 0.3):
+                # Tentar template matching para confirmar a cor
+                template_color, template_confidence = template_match_piece(square['image'])
+                
+                # Armazenar informações de template matching
+                square['template_match'] = {
+                    'color': template_color,
+                    'confidence': template_confidence
+                }
+                
+                # Se o template matching tiver boa confiança, usar sua classificação
+                if template_color and template_confidence > 0.6:
+                    square['piece_color'] = template_color
+                    square['piece_info']['template_confidence'] = template_confidence
     
     return warped_board, squares, corners
 
@@ -392,6 +415,11 @@ def visualize_board_and_pieces(img, warped_board, squares, corners=None):
             center_y = y + h // 2
             radius = min(w, h) // 3
             
+            # Obter tipo de peça se disponível
+            piece_type = None
+            if 'piece_info' in square and 'type' in square['piece_info']:
+                piece_type = square['piece_info']['type']
+            
             # Verificar se foi usado template matching com alta confiança
             used_template = False
             template_confidence = 0
@@ -410,17 +438,16 @@ def visualize_board_and_pieces(img, warped_board, squares, corners=None):
                 
                 # Adicionar indicador de tipo
                 text = "W"
-                if used_template:
-                    # Extrair tipo de peça do nome do template
-                    piece_type = square['template_match']['color']
-                    text = f"W"
+                if piece_type:
+                    # Usar primeira letra do tipo de peça
+                    text = piece_type[0].upper()
                 
                 cv2.putText(board_viz, text, (center_x-10, center_y+5), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
                 
-                # Adicionar confiança do template se disponível
-                if used_template:
-                    conf_text = f"{template_confidence:.2f}"
+                # Adicionar confiança do SIFT se disponível
+                if piece_type and 'sift_confidence' in square['piece_info']:
+                    conf_text = f"{square['piece_info']['sift_confidence']:.2f}"
                     cv2.putText(board_viz, conf_text, (center_x-15, center_y+radius+15), 
                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
                 
@@ -430,16 +457,16 @@ def visualize_board_and_pieces(img, warped_board, squares, corners=None):
                 
                 # Adicionar indicador de tipo
                 text = "B"
-                if used_template:
-                    piece_type = square['template_match']['color']
-                    text = f"B"
+                if piece_type:
+                    # Usar primeira letra do tipo de peça
+                    text = piece_type[0].upper()
                 
                 cv2.putText(board_viz, text, (center_x-10, center_y+5), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
                 
-                # Adicionar confiança do template se disponível
-                if used_template:
-                    conf_text = f"{template_confidence:.2f}"
+                # Adicionar confiança do SIFT se disponível
+                if piece_type and 'sift_confidence' in square['piece_info']:
+                    conf_text = f"{square['piece_info']['sift_confidence']:.2f}"
                     cv2.putText(board_viz, conf_text, (center_x-15, center_y+radius+15), 
                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             else:
@@ -455,18 +482,27 @@ def visualize_board_and_pieces(img, warped_board, squares, corners=None):
     white_pieces = sum(1 for s in squares if s['piece_color'] == 'white')
     black_pieces = sum(1 for s in squares if s['piece_color'] == 'black')
     unclassified = pieces_count - white_pieces - black_pieces
+
+    # Contar tipos de peças
+    pawn_count = sum(1 for s in squares if s['contains_piece'] and 'piece_info' in s and s['piece_info'].get('type') == 'pawn')
+    rook_count = sum(1 for s in squares if s['contains_piece'] and 'piece_info' in s and s['piece_info'].get('type') == 'rook')
+    queen_count = sum(1 for s in squares if s['contains_piece'] and 'piece_info' in s and s['piece_info'].get('type') == 'queen')
+    king_count = sum(1 for s in squares if s['contains_piece'] and 'piece_info' in s and s['piece_info'].get('type') == 'king')
+    unknown_type = pieces_count - pawn_count - rook_count - queen_count - king_count
     
     h, w = warped_board.shape[:2]
-    stats_img = np.ones((100, w, 3), dtype=np.uint8) * 240
+    stats_img = np.ones((120, w, 3), dtype=np.uint8) * 240
     
     cv2.putText(stats_img, f"Quadrados: {len(squares)} (Y:{yellow_count}, G:{green_count})", 
                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1)
     cv2.putText(stats_img, f"Peças: {pieces_count} (B:{black_pieces}, W:{white_pieces}, ?:{unclassified})", 
                (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1)
+    cv2.putText(stats_img, f"Tipos: P:{pawn_count}, R:{rook_count}, Q:{queen_count}, K:{king_count}, ?:{unknown_type}", 
+               (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1)
     
     # Legenda
-    cv2.putText(stats_img, "W = Peça Branca, B = Peça Preta, ? = Indeterminada", 
-               (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+    cv2.putText(stats_img, "P=Peão, R=Torre, Q=Rainha, K=Rei, ?=Indeterminado", 
+               (10, 115), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
     
     # Combinar visualização do tabuleiro com estatísticas
     board_with_stats = np.vstack((board_viz, stats_img))
@@ -485,4 +521,4 @@ def visualize_board_and_pieces(img, warped_board, squares, corners=None):
     # Combinar as duas visualizações lado a lado
     final_viz = np.hstack((original_resized, board_with_stats))
     
-    return final_viz 
+    return final_viz
