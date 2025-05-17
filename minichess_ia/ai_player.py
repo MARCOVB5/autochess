@@ -44,7 +44,7 @@ class MiniChessAI:
         self.games_played = 0
         
         # Tentar carregar modelo existente
-        self.model_path = 'minichess_ia2/models/minichess_ai_model.pkl'
+        self.model_path = './models/minichess_ai_model.pkl'
         self.load_model()
     
     def get_move(self, game):

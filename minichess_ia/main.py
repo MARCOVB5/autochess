@@ -53,10 +53,7 @@ def load_piece_images():
     """Carrega as imagens das peças."""
     # Lista de possíveis caminhos para as imagens
     possible_paths = [
-        "assets",
-        "../minichess/assets",
-        "/home/magna/autochess/minichess_ia2/assets",
-        "/home/magna/autochess/minichess/assets"
+        "assets"
     ]
     
     assets_dir = None
@@ -278,8 +275,8 @@ def screen_coords_to_board(x, y):
 def main():
     """Função principal do jogo."""
     # Garantir que os diretórios necessários existam
-    os.makedirs('minichess_ia2/models', exist_ok=True)
-    os.makedirs('minichess_ia2/assets', exist_ok=True)
+    os.makedirs('models', exist_ok=True)
+    os.makedirs('assets', exist_ok=True)
     
     # Carregamento das imagens
     load_piece_images()
