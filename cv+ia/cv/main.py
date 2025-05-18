@@ -67,16 +67,16 @@ def generate_chess_notation_matrix(squares, rows=4, cols=4):
             
             # Prefixar com W para branco ou B para preto
             if piece_color == 'white':
-                notation = f"{piece_type}"
-            elif piece_color == 'black':
                 notation = f"{piece_type.lower()}"
+            elif piece_color == 'black':
+                notation = f"{piece_type}"
             else:
                 notation = "??"  # Peça com cor indeterminada
                 
             matriz[row][col] = notation
         else:
             # Quadrado vazio
-            matriz[row][col] = ".."
+            matriz[row][col] = "."
     
     # Criar representação JSON das posições
     matriz_json = []
