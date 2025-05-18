@@ -222,7 +222,7 @@ def split_board_into_squares(warped_board, rows=4, cols=4):
     
     return squares
 
-def template_match_piece(square_img, templates_dir='./assets/pure-assets'):
+def template_match_piece(square_img, templates_dir='./cv/assets/pure-assets'):
     """
     Utiliza template matching para identificar o tipo e cor da peça.
     
@@ -327,7 +327,7 @@ def process_board_image(img):
             # Usar a cor detectada como dica para o reconhecimento SIFT
             piece_type, sift_color, confidence = identify_piece_sift(
                 square['image'], 
-                templates_dir='./assets/pure-assets',
+                templates_dir='./cv/assets/pure-assets',
                 expected_color=piece_color
             )
             

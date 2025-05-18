@@ -7,7 +7,7 @@ import argparse
 import os
 import platform
 import json
-from modules.board_processing import process_board_image, visualize_board_and_pieces
+from cv.modules.board_processing import process_board_image, visualize_board_and_pieces
 
 def show_with_matplotlib(image, title="Detecção de Tabuleiro e Peças"):
     """
@@ -67,9 +67,9 @@ def generate_chess_notation_matrix(squares, rows=4, cols=4):
             
             # Prefixar com W para branco ou B para preto
             if piece_color == 'white':
-                notation = f"{piece_type.lower()}"
-            elif piece_color == 'black':
                 notation = f"{piece_type}"
+            elif piece_color == 'black':
+                notation = f"{piece_type.lower()}"
             else:
                 notation = "??"  # Peça com cor indeterminada
                 
@@ -223,7 +223,7 @@ def main():
     """
     # Configurar o parser de argumentos
     parser = argparse.ArgumentParser(description='Análise de tabuleiro de xadrez 4x4')
-    parser.add_argument('--image', type=str, default="assets/testing-chessboards/chessboard_allpieces.jpg",
+    parser.add_argument('--image', type=str, default="cv/assets/testing-chessboards/chessboard_allpieces.jpg",
                         help='Caminho para a imagem do tabuleiro (padrão: chessboard_allpieces.png)')
     
     # Opção para salvar automaticamente as imagens intermediárias

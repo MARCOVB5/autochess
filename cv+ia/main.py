@@ -3,6 +3,7 @@ import time
 import ast
 from minichess import MiniChess
 from ai_player import MiniChessAI
+import cv.main as cv
 
 def print_board(board):
     """Imprime o tabuleiro no terminal."""
@@ -37,6 +38,49 @@ def is_valid_move_format(move_str):
         return False
     except (SyntaxError, ValueError):
         return False
+
+def get_movement_from_matrixes(last, current):
+    """
+    Extract the move made between two board states.
+    
+    Args:
+        last: The previous board state
+        current: The current board state
+    
+    Returns:
+        A string representation of the move in the format ((origin_row, origin_col), (dest_row, dest_col))
+    """
+    # Find differences between the boards
+    from_pos = []
+    to_pos = []
+    
+    for i in range(len(last)):
+        for j in range(len(last[i])):
+            # Check for removed pieces (potential move origin)
+            if last[i][j] != '.' and (last[i][j] != current[i][j]):
+                from_pos.append((i, j, last[i][j]))
+            
+            # Check for added/changed pieces (potential move destination)
+            if current[i][j] != '.' and (last[i][j] != current[i][j]):
+                to_pos.append((i, j, current[i][j]))
+    
+    # If there's a single piece that disappeared and appeared elsewhere
+    if len(from_pos) == 1 and len(to_pos) == 1:
+        return str(((from_pos[0][0], from_pos[0][1]), (to_pos[0][0], to_pos[0][1])))
+    
+    # If there's a capture (one piece disappeared, another changed location)
+    if len(from_pos) == 2 and len(to_pos) == 1:
+        # Find which piece moved (the one that still exists on the board)
+        for origin in from_pos:
+            for dest in to_pos:
+                if origin[2] == dest[2]:  # Same piece type
+                    return str(((origin[0], origin[1]), (dest[0], dest[1])))
+    
+    # If a promotion occurred or other special move
+    if len(from_pos) == 1 and len(to_pos) == 1:
+        return str(((from_pos[0][0], from_pos[0][1]), (to_pos[0][0], to_pos[0][1])))
+    
+    return "Invalid move detected"
 
 def main():
     """Função principal do jogo em modo console."""
@@ -150,7 +194,19 @@ def main():
                 valid_move = False
                 
                 while not valid_move:
-                    move_str = input("Digite seu movimento no formato ((linha_origem, coluna_origem), (linha_destino, coluna_destino)): ")
+                    # move_str = input("Digite seu movimento no formato ((linha_origem, coluna_origem), (linha_destino, coluna_destino)): ")
+                    
+                    # TODO
+                    # 1. Tirar foto com a webcam
+                    # 2. inverter 180 graus
+                    # 3. salvar em ./assets/current_board.jpg
+                    move_matrix = cv.detect_chess_position("./assets/current_board.png")["matriz"]
+                    # move_matrix = eval(input("Digite a matriz: "))
+
+                    # Quando tiver as matrizes anterior e atual:
+                    move_str = get_movement_from_matrixes(chess_game.board, move_matrix)
+
+                    print("O MOVIMENTO É: ", move_str)
                     
                     if not is_valid_move_format(move_str):
                         print("Formato de movimento inválido. Use o formato: ((0, 1), (2, 3))")
@@ -229,4 +285,4 @@ def main():
     print("Modelo da IA salvo. Até a próxima!")
 
 if __name__ == "__main__":
-    main() 
+    main()
