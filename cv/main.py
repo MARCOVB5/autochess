@@ -67,9 +67,9 @@ def generate_chess_notation_matrix(squares, rows=4, cols=4):
             
             # Prefixar com W para branco ou B para preto
             if piece_color == 'white':
-                notation = f"W{piece_type}"
+                notation = f"{piece_type}"
             elif piece_color == 'black':
-                notation = f"B{piece_type}"
+                notation = f"{piece_type.lower()}"
             else:
                 notation = "??"  # Peça com cor indeterminada
                 
