@@ -13,23 +13,27 @@ class CNCArdunioController:
             timeout (float): Tempo limite para operações de leitura
         """
         self.positions = {
-            0: (0.000, 0.000),  # Posição de origem X0 Y0
-            1: (-32.624, -16.596),
-            2: (-15.764, -21.048),
-            3: (-0.532, -25.076),
-            4: (15.260, -29.476),
-            5: (-15.844, -13.008),
-            6: (-0.752, -17.700),
-            7: (15.984, -20.952),
-            8: (31.528, -25.340),
-            9: (1.172, -8.844),
-            10: (16.332, -13.288),
-            11: (30.960, -17.288),
-            12: (47.328, -21.020),
-            13: (16.564, -4.908),
-            14: (31.964, -8.988),
-            15: (47.500, -13.256),
-            16: (63.824, -17.028)
+            0: (0.000, 0.000),  # Origem (não muda)
+            
+            1:  (16.564, -4.908),   # casa 1 → pos 13
+            2:  (31.964, -8.988),   # casa 2 → pos 14
+            3:  (47.500, -13.256),  # casa 3 → pos 15
+            4:  (63.824, -17.028),  # casa 4 → pos 16
+
+            5:  (1.172, -8.844),    # casa 5 → pos 9
+            6:  (16.332, -13.288),  # casa 6 → pos 10
+            7:  (30.960, -17.288),  # casa 7 → pos 11
+            8:  (47.328, -21.020),  # casa 8 → pos 12
+
+            9:  (-15.844, -13.008), # casa 9 → pos 5
+            10: (-0.752, -17.700),  # casa 10 → pos 6
+            11: (15.984, -20.952),  # casa 11 → pos 7
+            12: (31.528, -25.340),  # casa 12 → pos 8
+
+            13: (-32.624, -16.596), # casa 13 → pos 1
+            14: (-15.764, -21.048), # casa 14 → pos 2
+            15: (-0.532, -25.076),  # casa 15 → pos 3
+            16: (15.260, -29.476)   # casa 16 → pos 4
         }
         
         self.feed_rate = 1500  # Velocidade
@@ -101,7 +105,45 @@ class CNCArdunioController:
             self.serial.close()
             print("Conexão fechada")
 
+def control_moves(controller, move, capturou):
+    pos_origem, pos_destino = calculate_position(move)
 
+    # if(capturou == True):
+        # send_move(controller, pos_destino)
+
+        # Desce Eletroimã
+
+        # Calcula a posição para deixar a peça capturada
+
+        # Ergue
+        
+
+    send_move(controller, pos_origem)
+
+    # Abaixar o eletroimã
+
+    send_move(controller, pos_destino)
+
+    # Erguer o eletroimã
+
+    send_move(controller, 0)
+
+def calculate_position(move):
+    try:
+        (linha_origem, linha_destino), (coluna_origem, coluna_destino) = move
+        
+        pos_origem = 4 * linha_origem + coluna_origem + 1 
+        pos_destino = 4 * linha_destino + coluna_destino + 1
+    
+    except:
+        print("Erro ao processar o movimento!")
+        
+    return pos_origem, pos_destino
+
+def send_move(controller, pos):
+    controller.move_to_position(pos)
+    time.sleep(1)
+    
 def main():
     # Porta serial fixa como COM3
     port = "COM3"
