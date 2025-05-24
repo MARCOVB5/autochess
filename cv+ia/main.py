@@ -1,6 +1,7 @@
 import os
 import time
 import ast
+import cv2
 from minichess import MiniChess
 from ai_player import MiniChessAI
 import cv.main as cv
@@ -41,46 +42,77 @@ def is_valid_move_format(move_str):
 
 def get_movement_from_matrixes(last, current):
     """
-    Extract the move made between two board states.
+    Detecta o movimento das peças brancas comparando duas matrizes do tabuleiro.
     
     Args:
-        last: The previous board state
-        current: The current board state
+        last: matriz do estado anterior do tabuleiro
+        current: matriz do estado atual do tabuleiro
     
     Returns:
-        A string representation of the move in the format ((origin_row, origin_col), (dest_row, dest_col))
+        String no formato "((linha_origem, coluna_origem), (linha_destino, coluna_destino))"
+        ou None se nenhum movimento válido for detectado
     """
-    # Find differences between the boards
-    from_pos = []
-    to_pos = []
+    if not last or not current:
+        return None
     
-    for i in range(len(last)):
-        for j in range(len(last[i])):
-            # Check for removed pieces (potential move origin)
-            if last[i][j] != '.' and (last[i][j] != current[i][j]):
-                from_pos.append((i, j, last[i][j]))
+    # Verifica se as dimensões das matrizes são válidas
+    if len(last) != 4 or len(current) != 4:
+        return None
+    
+    for row in [last, current]:
+        if any(len(r) != 4 for r in row):
+            return None
+    
+    # Encontra posições onde peças brancas (maiúsculas) desapareceram
+    origem_candidates = []
+    # Encontra posições onde peças brancas (maiúsculas) apareceram
+    destino_candidates = []
+    
+    for i in range(4):
+        for j in range(4):
+            last_piece = last[i][j]
+            current_piece = current[i][j]
             
-            # Check for added/changed pieces (potential move destination)
-            if current[i][j] != '.' and (last[i][j] != current[i][j]):
-                to_pos.append((i, j, current[i][j]))
+            # Peça branca desapareceu (possível origem)
+            if (last_piece.isupper() and last_piece != '.' and 
+                (current_piece == '.' or current_piece.islower())):
+                origem_candidates.append((i, j, last_piece))
+            
+            # Peça branca apareceu (possível destino)
+            if (current_piece.isupper() and current_piece != '.' and
+                (last_piece == '.' or last_piece.islower())):
+                destino_candidates.append((i, j, current_piece))
     
-    # If there's a single piece that disappeared and appeared elsewhere
-    if len(from_pos) == 1 and len(to_pos) == 1:
-        return str(((from_pos[0][0], from_pos[0][1]), (to_pos[0][0], to_pos[0][1])))
+    # Tenta encontrar um par origem-destino válido
+    for origem_row, origem_col, origem_piece in origem_candidates:
+        for destino_row, destino_col, destino_piece in destino_candidates:
+            # Verifica se é a mesma peça
+            if origem_piece == destino_piece:
+                movimento = f"(({origem_row}, {origem_col}), ({destino_row}, {destino_col}))"
+                return movimento
     
-    # If there's a capture (one piece disappeared, another changed location)
-    if len(from_pos) == 2 and len(to_pos) == 1:
-        # Find which piece moved (the one that still exists on the board)
-        for origin in from_pos:
-            for dest in to_pos:
-                if origin[2] == dest[2]:  # Same piece type
-                    return str(((origin[0], origin[1]), (dest[0], dest[1])))
+    # Caso especial: movimento de captura onde a peça branca substitui uma preta
+    # Procura por posições onde havia uma peça preta e agora há uma branca
+    for origem_row, origem_col, origem_piece in origem_candidates:
+        for i in range(4):
+            for j in range(4):
+                # Se havia uma peça preta nesta posição e agora há uma branca
+                if (last[i][j].islower() and last[i][j] != '.' and
+                    current[i][j].isupper() and current[i][j] != '.'):
+                    # Verifica se é a mesma peça que saiu da origem
+                    if origem_piece == current[i][j]:
+                        movimento = f"(({origem_row}, {origem_col}), ({i}, {j}))"
+                        return movimento
     
-    # If a promotion occurred or other special move
-    if len(from_pos) == 1 and len(to_pos) == 1:
-        return str(((from_pos[0][0], from_pos[0][1]), (to_pos[0][0], to_pos[0][1])))
+    # Se não conseguiu detectar movimento específico, tenta uma abordagem mais simples
+    # Conta diferenças nas peças brancas
+    if len(origem_candidates) == 1 and len(destino_candidates) == 1:
+        origem = origem_candidates[0]
+        destino = destino_candidates[0]
+        movimento = f"(({origem[0]}, {origem[1]}), ({destino[0]}, {destino[1]}))"
+        return movimento
     
-    return "Invalid move detected"
+    return None
 
 def main():
     """Função principal do jogo em modo console."""
@@ -196,20 +228,46 @@ def main():
                 while not valid_move:
                     # move_str = input("Digite seu movimento no formato ((linha_origem, coluna_origem), (linha_destino, coluna_destino)): ")
                     
-                    # TODO
                     # 1. Tirar foto com a webcam
                     # 2. inverter 180 graus
                     # 3. salvar em ./assets/current_board.jpg
-                    move_matrix = cv.detect_chess_position("./assets/current_board.png")["matriz"]
+
+                    cap = cv2.VideoCapture(0)  # Webcam externa
+                    time.sleep(1.5)
+                    if cap.isOpened():
+                        ret, frame = cap.read()
+                        if ret:
+                            # Inverte 180 graus
+                            rotated_frame = cv2.rotate(frame, cv2.ROTATE_180)
+                            
+                            # Garante que o diretório assets existe
+                            os.makedirs('assets', exist_ok=True)
+                            
+                            # Salva a imagem
+                            cv2.imwrite('./assets/current_board.jpg', rotated_frame)
+                            print("✓ Foto do tabuleiro capturada e salva!")
+                        else:
+                            print("Erro ao capturar foto da webcam.")
+                        cap.release()
+                    else:
+                        print("Erro: Webcam não encontrada.")
+
+                    # Continua com a detecção
+                    move_matrix = cv.detect_chess_position("./assets/current_board.jpg")["matriz"]
                     # move_matrix = eval(input("Digite a matriz: "))
 
                     # Quando tiver as matrizes anterior e atual:
                     move_str = get_movement_from_matrixes(chess_game.board, move_matrix)
 
+                    print("Matriz Identificada:")
+                    for i in range(4):
+                        for j in range(4):
+                            print(move_matrix[i][j], end=" ")
+                        print("")
                     print("O MOVIMENTO É: ", move_str)
                     
                     if not is_valid_move_format(move_str):
-                        print("Formato de movimento inválido. Use o formato: ((0, 1), (2, 3))")
+                        print("Movimento inválido!")
                         continue
                     
                     move = ast.literal_eval(move_str)

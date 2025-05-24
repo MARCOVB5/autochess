@@ -2,7 +2,7 @@ import cv.main as cd
 
 # Caminho para a imagem do tabuleiro
 #image_path = "cv/assets/storage/testing-chessboards/21.png"
-image_path = "assets/current_board.png"
+image_path = "assets/current_board.jpg"
 
 # Detectar posição sem visualização
 result = cd.detect_chess_position(image_path)

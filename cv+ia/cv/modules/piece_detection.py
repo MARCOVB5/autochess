@@ -93,7 +93,7 @@ def piece_detection(square_img):
     
     if abs(inner_l - outer_l) < L_DIFF_THRESHOLD:
         # Not enough contrast, could be an empty square or noise
-        return False, None, None, piece_info
+        return False, None
     
     # Determine piece color based on which region is darker
     if inner_l < outer_l:
