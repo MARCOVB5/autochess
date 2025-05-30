@@ -105,28 +105,47 @@ class CNCArdunioController:
             self.serial.close()
             print("Conexão fechada")
 
-def control_moves(controller, move, capturou):
-    pos_origem, pos_destino = calculate_position(move)
-
-    # if(capturou == True):
-        # send_move(controller, pos_destino)
-
-        # Desce Eletroimã
-
-        # Calcula a posição para deixar a peça capturada
-
-        # Ergue
+def control_moves(move, captured):
+    # Porta serial fixa como COM3
+    port = "COM3"
+    
+    # Inicializar o controlador
+    try:
+        controller = CNCArdunioController(port)
         
+        print("\n=== Controlador CNC Arduino ===")
+        print("Posições disponíveis:")
+        print(f"POS0: X0.000 Y0.000 (Origem)")
+        for i in range(1, 17):
+            x, y = controller.positions[i]
+            print(f"POS{i}: X{x} Y{y}")
 
-    send_move(controller, pos_origem)
+        pos_origem, pos_destino = calculate_position(move)
 
-    # Abaixar o eletroimã
+        # if(captured == True):
+            # send_move(controller, pos_destino)
 
-    send_move(controller, pos_destino)
+            # Desce Eletroimã
 
-    # Erguer o eletroimã
+            # Calcula a posição para deixar a peça capturada
 
-    send_move(controller, 0)
+            # Ergue
+
+        send_move(controller, pos_origem)
+
+        # Abaixar o eletroimã
+
+        send_move(controller, pos_destino)
+
+        # Erguer o eletroimã
+
+        send_move(controller, 0)
+                    
+    except Exception as e:
+        print(f"Erro: {e}")
+    finally:
+        if 'controller' in locals():
+            controller.close()
 
 def calculate_position(move):
     try:
@@ -143,42 +162,9 @@ def calculate_position(move):
 def send_move(controller, pos):
     controller.move_to_position(pos)
     time.sleep(1)
-    
+
 def main():
-    # Porta serial fixa como COM3
-    port = "COM3"
-    
-    # Inicializar o controlador
-    try:
-        controller = CNCArdunioController(port)
-        
-        print("\n=== Controlador CNC Arduino ===")
-        print("Posições disponíveis:")
-        print(f"POS0: X0.000 Y0.000 (Origem)")
-        for i in range(1, 17):
-            x, y = controller.positions[i]
-            print(f"POS{i}: X{x} Y{y}")
-        
-        print("\nDigite o número da posição desejada (0-16) ou 'q' para sair")
-        
-        while True:
-            command = input("\nComando: ")
-            
-            if command.lower() == 'q':
-                break
-            
-            try:
-                position = int(command)
-                controller.move_to_position(position)
-            except ValueError:
-                print("Comando inválido! Digite um número de posição (0-16) ou 'q' para sair.")
-        
-    except Exception as e:
-        print(f"Erro: {e}")
-    finally:
-        if 'controller' in locals():
-            controller.close()
-
-
+   print("Main!!!")
+   
 if __name__ == "__main__":
-    main()
+    main()  
