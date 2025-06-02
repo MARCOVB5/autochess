@@ -2,7 +2,7 @@ import serial # pyserial
 import time
 import sys
 
-class CNCArdunioController:
+class CNCArduinoController:
     def __init__(self, port='COM3', baudrate=115200, timeout=1):
         """
         Inicializa a conexão com o Arduino (CNC Shield)
@@ -106,12 +106,18 @@ class CNCArdunioController:
             print("Conexão fechada")
 
 def control_moves(move, captured):
+    '''
+    - S25 : erguer o servo
+    - S0 : abaixar o servo
+    - M3 : ligar eletroimã
+    - M4 : desligar eletroimã
+    '''
     # Porta serial fixa como COM3
     port = "COM3"
     
     # Inicializar o controlador
     try:
-        controller = CNCArdunioController(port)
+        controller = CNCArduinoController(port)
         
         print("\n=== Controlador CNC Arduino ===")
         print("Posições disponíveis:")
@@ -125,11 +131,14 @@ def control_moves(move, captured):
         # if(captured == True):
             # send_move(controller, pos_destino)
 
-            # Desce Eletroimã
+            # Pega a peça
+            # S0, M3, delayzinho, S25
 
             # Calcula a posição para deixar a peça capturada
+            # send_move(controller, POS_CALCULADA)
 
-            # Ergue
+            # Deixa a peça
+            # S0, M4, delayzinho, S25  
 
         send_move(controller, pos_origem)
 
