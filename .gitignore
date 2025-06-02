@@ -11,3 +11,5 @@
 venv/
 env/
 .venv/
+
+arduino-cli.exe
