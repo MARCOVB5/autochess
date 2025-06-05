@@ -5,6 +5,8 @@ from minichess import MiniChess
 from ai_player import MiniChessAI
 import cv.main as cv
 from serial_cnc import cnc_controller
+import cv2
+import time
 
 def print_board(board):
     """Imprime o tabuleiro no terminal."""
@@ -122,7 +124,7 @@ def initialize_game():
     ai_player = MiniChessAI()
     
     # Inicialização do Controlador do CNC (comentado)
-    # controller = cnc_controller.CNCArduinoController("COM3")
+    controller = cnc_controller.CNCArduinoController("COM3")
     
     # Inicialização do jogo
     ignore_check_rule = ai_player.games_played < 5
@@ -221,10 +223,10 @@ def capture_and_detect_move(chess_game):
         str: String do movimento ou None se inválido
     """
     # Código para captura da webcam (comentado)
-    '''
-    cap = cv2.VideoCapture(0)  # Webcam externa
+
+    cap = cv2.VideoCapture(1)  # Webcam externa
     if cap.isOpened():
-        time.sleep(1.5)
+        time.sleep(3)
         ret, frame = cap.read()
         if ret:
             # Inverte 180 graus
@@ -234,14 +236,13 @@ def capture_and_detect_move(chess_game):
             os.makedirs('assets', exist_ok=True)
             
             # Salva a imagem
-            cv2.imwrite('./assets/current_board.jpg', rotated_frame)
+            cv2.imwrite('./assets/current_board.png', rotated_frame)
             print("✓ Foto do tabuleiro capturada e salva!")
         else:
             print("Erro ao capturar foto da webcam.")
         cap.release()
     else:
         print("Erro: Webcam não encontrada.")
-    '''
 
     # Detecta posição atual do tabuleiro
     move_matrix = cv.detect_chess_position("./assets/current_board.jpg")["matriz"]
@@ -355,7 +356,7 @@ def process_ai_turn(chess_game, ai_player):
             chess_game.make_move(ai_move)
             
             # Executa o movimento real
-            # controller.control_moves(ai_move, captured)
+            cnc_controller.control_moves(ai_move, captured)
             
             return False
 

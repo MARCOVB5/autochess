@@ -44,6 +44,8 @@ class CNCArduinoController:
         }
         
         self.feed_rate = 1500  # Velocidade
+
+        self.death_position = 17
         
         try:
             self.serial = serial.Serial(port, baudrate, timeout=timeout)
@@ -161,56 +163,36 @@ class CNCArduinoController:
             self.serial.close()
             print("Conexão fechada")
 
-def control_moves(move, captured):
-    '''
-    - S25 : erguer o servo
-    - S0 : abaixar o servo
-    - M3 : ligar eletroimã
-    - M4 : desligar eletroimã
-    '''
-    # Porta serial fixa como COM3
-    port = "COM3"
-    
-    # Inicializar o controlador
-    try:
-        controller = CNCArduinoController(port)
-        
-        print("\n=== Controlador CNC Arduino ===")
-        print("Posições disponíveis:")
-        print(f"POS0: X0.000 Y0.000 (Origem)")
-        for i in range(1, 17):
-            x, y = controller.positions[i]
-            print(f"POS{i}: X{x} Y{y}")
+    def control_moves(self, move, captured):
+        try:
+            pos_origem, pos_destino = calculate_position(move)
 
-        pos_origem, pos_destino = calculate_position(move)
+            if(captured == True):
+                self.move_to_position(pos_destino)
 
-        # if(captured == True):
-            # send_move(controller, pos_destino)
+                self.pick_piece()
 
-            # Pega a peça
-            # S0, M3, delayzinho, S25
+                # Aumenta o iterador
+                self.move_to_position(self.death_position)
+                self.death_position += 1
 
-            # Calcula a posição para deixar a peça capturada
-            # send_move(controller, POS_CALCULADA)
+                self.drop_piece()
 
-            # Deixa a peça
-            # S0, M4, delayzinho, S25  
+            self.move_to_position(pos_origem)
 
-        send_move(controller, pos_origem)
+            self.pick_piece()
 
-        # Abaixar o eletroimã
+            self.move_to_position(pos_destino)
 
-        send_move(controller, pos_destino)
+            self.drop_piece()
 
-        # Erguer o eletroimã
+            self.move_to_position(0)
 
-        send_move(controller, 0)
-                    
-    except Exception as e:
-        print(f"Erro: {e}")
-    finally:
-        if 'controller' in locals():
-            controller.close()
+            self.electromagnet_off()
+            self.servo_down()
+                        
+        except Exception as e:
+            print(f"Erro: {e}")
 
 def calculate_position(move):
     try:
