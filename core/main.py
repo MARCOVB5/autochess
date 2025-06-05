@@ -130,7 +130,7 @@ def initialize_game():
     ignore_check_rule = ai_player.games_played < 5
     chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
     
-    return ai_player, chess_game
+    return ai_player, chess_game, controller
 
 def display_game_status(chess_game, ai_player):
     """Exibe o status atual do jogo."""
@@ -334,7 +334,7 @@ def handle_human_turn(chess_game, ai_player, human_player):
     
     return True, chess_game, False
 
-def process_ai_turn(chess_game, ai_player):
+def process_ai_turn(chess_game, ai_player, controller):
     """
     Processa o turno da IA.
     
@@ -356,7 +356,7 @@ def process_ai_turn(chess_game, ai_player):
             chess_game.make_move(ai_move)
             
             # Executa o movimento real
-            cnc_controller.control_moves(ai_move, captured)
+            controller.control_moves(ai_move, captured)
             
             return False
 
@@ -376,7 +376,7 @@ def process_ai_turn(chess_game, ai_player):
 def main():
     """Função principal do jogo em modo console."""
     # Inicialização
-    ai_player, chess_game = initialize_game()
+    ai_player, chess_game, controller = initialize_game()
     human_player = 'w'
     running = True
     game_over = False
@@ -407,7 +407,7 @@ def main():
                 
         # Turno da IA
         else:
-            game_over = process_ai_turn(chess_game, ai_player)
+            game_over = process_ai_turn(chess_game, ai_player, controller)
     
     # Salva o modelo antes de sair
     ai_player.save_model()
