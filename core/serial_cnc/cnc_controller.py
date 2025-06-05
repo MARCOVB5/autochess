@@ -33,7 +33,14 @@ class CNCArduinoController:
             13: (-32.624, -16.596), # casa 13 → pos 1
             14: (-15.764, -21.048), # casa 14 → pos 2
             15: (-0.532, -25.076),  # casa 15 → pos 3
-            16: (15.260, -29.476)   # casa 16 → pos 4
+            16: (15.260, -29.476),  # casa 16 → pos 4
+            
+            17: (-58.624, -13.596), # posição adicional 17
+            18: (-46.624, -11.096), # posição adicional 18
+            19: (-35.624, -8.096),  # posição adicional 19
+            20: (28.260, -36.976),  # posição adicional 20
+            21: (39.260, -33.976),  # posição adicional 21
+            22: (52.260, -30.976)   # posição adicional 22
         }
         
         self.feed_rate = 1500  # Velocidade
@@ -98,6 +105,55 @@ class CNCArduinoController:
         time.sleep(1)
         
         return True
+    
+    def show_positions(self):
+        """Mostra todas as posições disponíveis"""
+        print("\n=== POSIÇÕES DISPONÍVEIS ===")
+        for pos, (x, y) in self.positions.items():
+            print(f"POS{pos:2d}: X{x:8.3f} Y{y:8.3f}")
+        print("="*32)
+    
+    def servo_up(self):
+        """Erguer o servo motor (S25)"""
+        print("⬆️ Levantando servo motor...")
+        self.send_command("S25")
+        time.sleep(0.5)
+        
+    def servo_down(self):
+        """Abaixar o servo motor (S0)"""
+        print("⬇️ Abaixando servo motor...")
+        self.send_command("S0")
+        time.sleep(0.5)
+        
+    def electromagnet_on(self):
+        """Ligar eletroimã (M3)"""
+        print("🧲 Ligando eletroimã...")
+        self.send_command("M3")
+        time.sleep(0.2)
+        
+    def electromagnet_off(self):
+        """Desligar eletroimã (M4)"""
+        print("🔌 Desligando eletroimã...")
+        self.send_command("M4")
+        time.sleep(0.2)
+    
+    def pick_piece(self):
+        """Sequência completa para pegar uma peça"""
+        print("🤏 Iniciando sequência de captura...")
+        self.servo_down()      # Abaixar servo
+        self.electromagnet_on() # Ligar eletroimã
+        time.sleep(1)          # Delay para fixar
+        self.servo_up()        # Erguer servo
+        print("✅ Peça capturada!")
+        
+    def drop_piece(self):
+        """Sequência completa para largar uma peça"""
+        print("📤 Iniciando sequência de liberação...")
+        self.servo_down()       # Abaixar servo
+        self.electromagnet_off() # Desligar eletroimã
+        time.sleep(1)           # Delay para soltar
+        self.servo_up()         # Erguer servo
+        print("✅ Peça liberada!")
     
     def close(self):
         """Fecha a conexão serial"""
@@ -173,7 +229,110 @@ def send_move(controller, pos):
     time.sleep(1)
 
 def main():
-   print("Main!!!")
-   
+    """Interface principal do terminal para controlar a CNC"""
+    print("🤖 === CONTROLADOR CNC ARDUINO ===")
+    print("Conectando ao Arduino...")
+    
+    # Porta serial fixa como COM3
+    port = "COM3"
+    
+    try:
+        # Inicializar o controlador
+        controller = CNCArduinoController(port)
+        
+        print("✅ CNC conectada e inicializada!")
+        
+        while True:
+            print("\n" + "="*55)
+            print("🤖 MENU DE CONTROLE CNC COMPLETO")
+            print("="*55)
+            print("📍 MOVIMENTAÇÃO:")
+            print("  1. 📋 Mostrar todas as posições")
+            print("  2. 🎯 Ir para uma posição")
+            print("  3. 🏠 Ir para origem (POS0)")
+            print("")
+            print("🔧 CONTROLE SERVO/ELETROIMÃ:")
+            print("  4. ⬆️ Erguer servo (S25)")
+            print("  5. ⬇️ Abaixar servo (S0)")
+            print("  6. 🧲 Ligar eletroimã (M3)")
+            print("  7. 🔌 Desligar eletroimã (M4)")
+            print("")
+            print("🎮 SEQUÊNCIAS AUTOMÁTICAS:")
+            print("  8. 🤏 Pegar peça (completo)")
+            print("  9. 📤 Largar peça (completo)")
+            print("")
+            print("  0. ❌ Sair")
+            print("="*55)
+            
+            opcao = input("👉 Escolha uma opção (0-9): ").strip()
+            
+            if opcao == "1":
+                controller.show_positions()
+                
+            elif opcao == "2":
+                controller.show_positions()
+                try:
+                    pos = input("\n🎯 Digite a posição desejada (0-22): ").strip()
+                    pos_num = int(pos)
+                    
+                    if pos_num in controller.positions:
+                        print(f"\n🚀 Movendo para posição {pos_num}...")
+                        success = controller.move_to_position(pos_num)
+                        if success:
+                            x, y = controller.positions[pos_num]
+                            print(f"✅ Movimento concluído! Posição atual: X{x} Y{y}")
+                        else:
+                            print("❌ Falha no movimento!")
+                    else:
+                        print(f"❌ Posição {pos_num} não existe! Use posições de 0 a 22.")
+                        
+                except ValueError:
+                    print("❌ Por favor, digite um número válido!")
+                except KeyboardInterrupt:
+                    print("\n⚠️ Operação cancelada pelo usuário")
+                    
+            elif opcao == "3":
+                print("\n🏠 Retornando à origem...")
+                success = controller.move_to_position(0)
+                if success:
+                    print("✅ CNC na posição origem (0, 0)")
+                else:
+                    print("❌ Falha ao retornar à origem!")
+                    
+            elif opcao == "4":
+                controller.servo_up()
+                
+            elif opcao == "5":
+                controller.servo_down()
+                
+            elif opcao == "6":
+                controller.electromagnet_on()
+                
+            elif opcao == "7":
+                controller.electromagnet_off()
+                
+            elif opcao == "8":
+                controller.pick_piece()
+                
+            elif opcao == "9":
+                controller.drop_piece()
+                    
+            elif opcao == "0":
+                print("\n👋 Encerrando programa...")
+                break
+                
+            else:
+                print("❌ Opção inválida! Por favor, escolha entre 0-9.")
+                
+    except KeyboardInterrupt:
+        print("\n\n⚠️ Programa interrompido pelo usuário (Ctrl+C)")
+    except Exception as e:
+        print(f"❌ Erro: {e}")
+    finally:
+        if 'controller' in locals():
+            controller.close()
+            print("🔌 Conexão com Arduino encerrada")
+        print("👋 Programa finalizado!")
+
 if __name__ == "__main__":
-    main()  
+    main()
