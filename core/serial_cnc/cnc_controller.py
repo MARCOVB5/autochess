@@ -35,9 +35,12 @@ class CNCArduinoController:
             15: (-0.532, -25.076),  # casa 15 → pos 3
             16: (15.260, -29.476),  # casa 16 → pos 4
             
+            # Posições de morte na esquerda
             17: (-58.624, -13.596), # posição adicional 17
             18: (-46.624, -11.096), # posição adicional 18
             19: (-35.624, -8.096),  # posição adicional 19
+
+            # Posições de morte na direita
             20: (28.260, -36.976),  # posição adicional 20
             21: (39.260, -33.976),  # posição adicional 21
             22: (52.260, -30.976)   # posição adicional 22
@@ -45,7 +48,8 @@ class CNCArduinoController:
         
         self.feed_rate = 1500  # Velocidade
 
-        self.death_position = 17
+        self.death_position_left = 17
+        self.death_position_right = 20
         
         try:
             self.serial = serial.Serial(port, baudrate, timeout=timeout)
@@ -169,25 +173,30 @@ class CNCArduinoController:
 
             if(captured == True):
                 self.move_to_position(pos_destino)
-
                 self.pick_piece()
 
-                # Aumenta o iterador
-                self.move_to_position(self.death_position)
-                self.death_position += 1
+                # Move para a posição de morte
+                if pos_destino[0] <= 1:
+                    self.move_to_position(self.death_position_left)
+                    self.death_position_left += 1
+                else:
+                    self.move_to_position(self.death_position_right)
+                    self.death_position_right += 1
 
+                if self.death_position_left > 19:
+                    self.death_position_left = 17
+                if self.death_position_right > 22:
+                    self.death_position_right = 20
+                
                 self.drop_piece()
 
             self.move_to_position(pos_origem)
-
             self.pick_piece()
 
             self.move_to_position(pos_destino)
-
             self.drop_piece()
 
             self.move_to_position(0)
-
             self.electromagnet_off()
             self.servo_down()
                         
