@@ -69,14 +69,29 @@ class CNCArduinoController:
             "G92 X0 Y0"  # Definir posição atual como origem
         ]
         
+        print("🔧 Enviando comandos iniciais...")
         for cmd in init_commands:
-            self.send_command(cmd)
-            time.sleep(0.1)
+            self.send_command_and_wait(cmd)
         
-        print("CNC inicializada com sucesso!")
+        # Sequência de inicialização do servo e eletroimã
+        print("🔄 Inicializando servo e eletroimã...")
+        
+        # 1. Ligar eletroimã
+        print("🧲 Ligando eletroimã...")
+        self.send_command_and_wait("M3")
+        
+        # 2. Levantar servo
+        print("⬆️ Levantando servo...")
+        self.send_command_and_wait("S0")
+        
+        # 3. Desligar eletroimã
+        print("🔌 Desligando eletroimã...")
+        self.send_command_and_wait("M4")
+        
+        print("✅ CNC inicializada com sucesso!")
     
     def send_command(self, command):
-        """Envia um comando G-code para o Arduino"""
+        """Envia um comando G-code para o Arduino (sem aguardar resposta)"""
         try:
             # Adicionar nova linha ao final do comando
             full_command = f"{command}\n"
@@ -94,23 +109,97 @@ class CNCArduinoController:
             print(f"Erro ao enviar comando: {e}")
             return None
     
-    def move_to_position(self, position_number):
-        """Move para uma posição pré-definida"""
+    def send_command_and_wait(self, command, timeout=30):
+        """
+        Envia um comando G-code e aguarda a confirmação "ok" do GRBL
+        
+        Parâmetros:
+            command (str): Comando G-code a ser enviado
+            timeout (int): Tempo limite em segundos para aguardar resposta
+            
+        Retorna:
+            bool: True se recebeu "ok", False se houve erro ou timeout
+        """
+        try:
+            # Limpar buffer de entrada
+            self.serial.flushInput()
+            
+            # Enviar comando
+            full_command = f"{command}\n"
+            self.serial.write(full_command.encode())
+            print(f"Enviado: {command}")
+            
+            # Aguardar resposta com timeout
+            start_time = time.time()
+            response_buffer = ""
+            
+            while time.time() - start_time < timeout:
+                if self.serial.in_waiting > 0:
+                    char = self.serial.read(1).decode('utf-8', errors='ignore')
+                    response_buffer += char
+                    
+                    # Verificar se recebemos uma linha completa
+                    if '\n' in response_buffer or '\r' in response_buffer:
+                        lines = response_buffer.replace('\r', '\n').split('\n')
+                        
+                        for line in lines:
+                            line = line.strip()
+                            if line:
+                                print(f"GRBL: {line}")
+                                
+                                # Verificar se é uma confirmação de sucesso
+                                if line.lower() == "ok":
+                                    return True
+                                
+                                # Verificar se é um erro
+                                if line.lower().startswith("error"):
+                                    print(f"❌ Erro GRBL: {line}")
+                                    return False
+                        
+                        # Resetar buffer mantendo apenas a última parte incompleta
+                        response_buffer = lines[-1] if not lines[-1].strip() else ""
+                
+                time.sleep(0.01)  # Pequeno delay para não sobrecarregar a CPU
+            
+            print(f"⚠️ Timeout aguardando resposta para comando: {command}")
+            return False
+            
+        except Exception as e:
+            print(f"❌ Erro ao enviar comando e aguardar: {e}")
+            return False
+    
+    def move_to_position(self, position_number, wait_for_completion=True):
+        """
+        Move para uma posição pré-definida
+        
+        Parâmetros:
+            position_number (int): Número da posição (0-22)
+            wait_for_completion (bool): Se deve aguardar a confirmação do GRBL
+            
+        Retorna:
+            bool: True se o movimento foi bem-sucedido
+        """
         if position_number not in self.positions:
-            print(f"Posição {position_number} não existe!")
+            print(f"❌ Posição {position_number} não existe!")
             return False
         
         x, y = self.positions[position_number]
         command = f"G1 X{x:.3f} Y{y:.3f} F{self.feed_rate}"
         
-        print(f"Movendo para POS{position_number}: X{x} Y{y}")
-        self.send_command(command)
+        print(f"🎯 Movendo para POS{position_number}: X{x} Y{y}")
         
-        # Esperar o movimento ser concluído
-        # Isso depende do firmware - alguns firmwares como GRBL responderam "ok" quando concluírem
-        time.sleep(1)
-        
-        return True
+        if wait_for_completion:
+            success = self.send_command_and_wait(command)
+            if success:
+                print(f"✅ Movimento para POS{position_number} concluído!")
+            else:
+                print(f"❌ Falha no movimento para POS{position_number}")
+            return success
+        else:
+            # Modo compatível com código antigo
+            self.send_command(command)
+            time.sleep(1)
+            return True
     
     def show_positions(self):
         """Mostra todas as posições disponíveis"""
@@ -122,102 +211,177 @@ class CNCArduinoController:
     def servo_up(self):
         """Erguer o servo motor (S25)"""
         print("⬆️ Levantando servo motor...")
-        self.send_command("S25")
-        time.sleep(0.5)
+        success = self.send_command_and_wait("S25")
+        if success:
+            print("✅ Servo levantado!")
+        else:
+            print("❌ Falha ao levantar servo")
+        return success
         
     def servo_down(self):
         """Abaixar o servo motor (S0)"""
         print("⬇️ Abaixando servo motor...")
-        self.send_command("S0")
-        time.sleep(0.5)
+        success = self.send_command_and_wait("S0")
+        if success:
+            print("✅ Servo abaixado!")
+        else:
+            print("❌ Falha ao abaixar servo")
+        return success
         
     def electromagnet_on(self):
         """Ligar eletroimã (M3)"""
         print("🧲 Ligando eletroimã...")
-        self.send_command("M3")
-        time.sleep(0.2)
+        success = self.send_command_and_wait("M3")
+        if success:
+            print("✅ Eletroimã ligado!")
+        else:
+            print("❌ Falha ao ligar eletroimã")
+        return success
         
     def electromagnet_off(self):
         """Desligar eletroimã (M4)"""
         print("🔌 Desligando eletroimã...")
-        self.send_command("M4")
-        time.sleep(0.2)
+        success = self.send_command_and_wait("M4")
+        if success:
+            print("✅ Eletroimã desligado!")
+        else:
+            print("❌ Falha ao desligar eletroimã")
+        return success
     
     def pick_piece(self):
         """Sequência completa para pegar uma peça"""
         print("🤏 Iniciando sequência de captura...")
-        self.servo_down()      # Abaixar servo
-        self.electromagnet_on() # Ligar eletroimã
-        time.sleep(1)          # Delay para fixar
-        self.servo_up()        # Erguer servo
-        print("✅ Peça capturada!")
+        
+        if not self.servo_down():
+            return False
+        
+        if not self.electromagnet_on():
+            return False
+        
+        time.sleep(1)  # Delay para fixar a peça
+        
+        if not self.servo_up():
+            return False
+            
+        print("✅ Peça capturada com sucesso!")
+        return True
         
     def drop_piece(self):
         """Sequência completa para largar uma peça"""
         print("📤 Iniciando sequência de liberação...")
-        self.servo_down()       # Abaixar servo
-        self.electromagnet_off() # Desligar eletroimã
-        time.sleep(1)           # Delay para soltar
-        self.servo_up()         # Erguer servo
-        print("✅ Peça liberada!")
+        
+        if not self.servo_down():
+            return False
+        
+        if not self.electromagnet_off():
+            return False
+        
+        time.sleep(1)  # Delay para soltar a peça
+        
+        if not self.servo_up():
+            return False
+            
+        print("✅ Peça liberada com sucesso!")
+        return True
     
     def close(self):
         """Fecha a conexão serial"""
         if hasattr(self, 'serial') and self.serial.is_open:
             self.serial.close()
-            print("Conexão fechada")
+            print("🔌 Conexão fechada")
 
     def control_moves(self, move, captured):
+        """
+        Controla movimentos de xadrez com verificação de confirmação GRBL
+        """
         try:
             pos_origem, pos_destino = calculate_position(move)
+            self.servo_up()
 
-            if(captured == True):
-                self.move_to_position(pos_destino)
-                self.pick_piece()
+            if captured == True:
+                print("♟️ Captura detectada - removendo peça do destino")
+                
+                if not self.move_to_position(pos_destino):
+                    print("❌ Falha ao mover para posição de captura")
+                    return False
+                
+                if not self.pick_piece():
+                    print("❌ Falha ao capturar peça")
+                    return False
 
                 # Move para a posição de morte
-                if pos_destino[0] <= 1:
-                    self.move_to_position(self.death_position_left)
+                death_pos = None
+                if move[1][1] <= 1:  # Lado esquerdo do tabuleiro
+                    death_pos = self.death_position_left
                     self.death_position_left += 1
-                else:
-                    self.move_to_position(self.death_position_right)
+                    if self.death_position_left > 19:
+                        self.death_position_left = 17
+                else:  # Lado direito do tabuleiro
+                    death_pos = self.death_position_right
                     self.death_position_right += 1
+                    if self.death_position_right > 22:
+                        self.death_position_right = 20
 
-                if self.death_position_left > 19:
-                    self.death_position_left = 17
-                if self.death_position_right > 22:
-                    self.death_position_right = 20
+                print(f"☠️ Movendo peça capturada para posição de morte {death_pos}")
+                if not self.move_to_position(death_pos):
+                    print("❌ Falha ao mover para posição de morte")
+                    return False
                 
-                self.drop_piece()
+                if not self.drop_piece():
+                    print("❌ Falha ao soltar peça capturada")
+                    return False
 
-            self.move_to_position(pos_origem)
-            self.pick_piece()
+            # Movimento principal da peça
+            print(f"♞ Executando movimento: POS{pos_origem} → POS{pos_destino}")
+            
+            if not self.move_to_position(pos_origem):
+                print("❌ Falha ao mover para posição de origem")
+                return False
+            
+            if not self.pick_piece():
+                print("❌ Falha ao pegar peça de origem")
+                return False
 
-            self.move_to_position(pos_destino)
-            self.drop_piece()
+            if not self.move_to_position(pos_destino):
+                print("❌ Falha ao mover para posição de destino")
+                return False
+            
+            if not self.drop_piece():
+                print("❌ Falha ao soltar peça no destino")
+                return False
 
-            self.move_to_position(0)
-            self.electromagnet_off()
-            self.servo_down()
+            # Retornar à origem
+            print("🏠 Retornando à posição inicial")
+            if not self.move_to_position(0):
+                print("❌ Falha ao retornar à origem")
+                return False
+            
+            self.servo_down()         # Deixar servo na posição baixa
+            self.electromagnet_off()  # Garantir que eletroimã está desligado
+            
+            print("✅ Movimento executado com sucesso!")
+            return True
                         
         except Exception as e:
-            print(f"Erro: {e}")
+            print(f"❌ Erro durante execução do movimento: {e}")
+            return False
 
 def calculate_position(move):
     try:
-        (linha_origem, linha_destino), (coluna_origem, coluna_destino) = move
+        (linha_origem, coluna_origem), (linha_destino, coluna_destino) = move
         
         pos_origem = 4 * linha_origem + coluna_origem + 1 
         pos_destino = 4 * linha_destino + coluna_destino + 1
     
     except:
-        print("Erro ao processar o movimento!")
+        print("❌ Erro ao processar o movimento!")
+        return None, None
         
     return pos_origem, pos_destino
 
 def send_move(controller, pos):
-    controller.move_to_position(pos)
-    time.sleep(1)
+    """Função auxiliar para compatibilidade"""
+    return controller.move_to_position(pos)
 
 def main():
     """Interface principal do terminal para controlar a CNC"""
