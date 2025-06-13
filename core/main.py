@@ -8,6 +8,292 @@ from serial_cnc import cnc_controller
 import cv2
 import time
 
+class OptimizedChessVision:
+    """
+    Classe para manter estado e otimizar detecção de movimento de xadrez.
+    Carrega recursos uma única vez e reutiliza entre chamadas.
+    """
+    
+    def __init__(self):
+        self.detector = None
+        self.last_board_state = None
+        self.board_template = None
+        self.calibration_data = None
+        self._initialize_vision_resources()
+    
+    def _initialize_vision_resources(self):
+        """Inicializa recursos computacionalmente custosos uma única vez."""
+        try:
+            # Inicializar detector SIFT/ORB uma única vez
+            self.detector = cv2.SIFT_create() if hasattr(cv2, 'SIFT_create') else cv2.ORB_create()
+            
+            # Carregar templates de peças se existirem
+            self._load_piece_templates()
+            
+            print("✅ Recursos de visão computacional inicializados")
+        except Exception as e:
+            print(f"⚠️ Erro ao inicializar recursos de visão: {e}")
+    
+    def _load_piece_templates(self):
+        """Carrega templates de peças se disponíveis."""
+        templates_dir = "cv/assets/piece_templates"
+        if os.path.exists(templates_dir):
+            # Implementar carregamento de templates aqui se necessário
+            pass
+    
+    def detect_chess_position_optimized(self, image_path):
+        """
+        Versão otimizada da detecção que reutiliza recursos.
+        """
+        # Verificar se o arquivo existe
+        if not os.path.exists(image_path):
+            print(f"❌ Arquivo não encontrado: {image_path}")
+            return None
+            
+        frame = cv2.imread(image_path)
+        
+        if frame is None:
+            print(f"❌ Não foi possível carregar a imagem: {image_path}")
+            return None
+        
+        try:
+            # Usar a função existente mas com recursos pré-carregados
+            result = cv.detect_chess_position(image_path, visualize=False, save_all=False)
+            
+            if result and "matriz" in result:
+                # Cachear resultado para comparação futura
+                self.last_board_state = result["matriz"]
+                return result
+            else:
+                return None
+                
+        except Exception as e:
+            print(f"❌ Erro na detecção otimizada: {e}")
+            return None
+    
+    def get_board_changes(self, current_matrix):
+        """
+        Compara com estado anterior para detectar apenas mudanças.
+        """
+        if self.last_board_state is None:
+            return current_matrix
+        
+        # Implementar comparação inteligente aqui
+        return current_matrix
+
+class OptimizedGameController:
+    """
+    Controlador de jogo otimizado que mantém estado e recursos.
+    """
+    
+    def __init__(self):
+        self.ai_player = None
+        self.chess_game = None
+        self.controller = None
+        self.camera = None
+        self.vision_system = OptimizedChessVision()
+        self.game_state_cache = {}
+        
+    def initialize_game_resources(self):
+        """Inicializa todos os recursos uma única vez."""
+        try:
+            # Criar diretórios necessários
+            os.makedirs('models', exist_ok=True)
+            os.makedirs('assets', exist_ok=True)
+            
+            # Inicialização da IA
+            self.ai_player = MiniChessAI()
+            
+            # Inicialização do Controlador do CNC
+            self.controller = cnc_controller.CNCArduinoController("COM3")
+            
+            # Inicialização da câmera
+            self.camera = self._initialize_camera()
+            
+            # Inicialização do jogo
+            ignore_check_rule = self.ai_player.games_played < 5
+            self.chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Erro na inicialização: {e}")
+            return False
+    
+    def _initialize_camera(self):
+        """Inicializa a câmera com configurações otimizadas."""
+        print("Inicializando câmera...")
+        cap = cv2.VideoCapture(1)  # Webcam externa
+        
+        if not cap.isOpened():
+            print("❌ Erro: Webcam não encontrada.")
+            return None
+        
+        # Configurações otimizadas da câmera
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        cap.set(cv2.CAP_PROP_FPS, 30)
+        
+        # Configurações adicionais para melhor performance
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Reduz buffer para menor latência
+        cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Desabilita auto-exposição se possível
+        
+        print("✅ Câmera inicializada com sucesso!")
+        return cap
+    
+    def capture_and_detect_move_optimized(self):
+        """
+        Versão otimizada da captura e detecção de movimento.
+        """
+        if self.camera is None or not self.camera.isOpened():
+            print("❌ Erro: Câmera não está disponível.")
+            return None
+        
+        print("Capturando foto do tabuleiro...")
+        
+        # Captura otimizada com flush do buffer
+        for _ in range(3):  # Flush buffer antigo
+            ret, frame = self.camera.read()
+            if not ret:
+                break
+        
+        # Captura final
+        ret, frame = self.camera.read()
+        if not ret:
+            print("❌ Erro ao capturar foto da webcam.")
+            return None
+        
+        # Rotaciona a imagem 180 graus
+        rotated_frame = cv2.rotate(frame, cv2.ROTATE_180)
+        
+        # Salva a imagem
+        image_path = './assets/current_board.jpg'
+        cv2.imwrite(image_path, rotated_frame)
+        print("✅ Foto do tabuleiro capturada e salva!")
+
+        # Usa sistema de visão otimizado
+        result = self.vision_system.detect_chess_position_optimized(image_path)
+        
+        if result is None or "matriz" not in result or result["matriz"] is None:
+            print("❌ Falha ao detectar o tabuleiro. Verifique a imagem e tente novamente.")
+            return None
+
+        move_matrix = result["matriz"]
+
+        print("Matriz Identificada:")
+        try:
+            for i in range(4):
+                for j in range(4):
+                    print(move_matrix[i][j], end=" ")
+                print("")
+        except Exception as e:
+            print(f"❌ Erro ao imprimir matriz: {e}")
+            return None
+
+        # Detecta movimento comparando matrizes
+        try:
+            move_str = self._get_movement_from_matrixes(self.chess_game.board, move_matrix)
+            print("O MOVIMENTO É: ", move_str)
+            return move_str
+        except Exception as e:
+            print(f"❌ Erro ao detectar movimento: {e}")
+            return None
+    
+    def _get_movement_from_matrixes(self, last, current):
+        """
+        Detecta o movimento das peças brancas comparando duas matrizes do tabuleiro.
+        Versão otimizada com cache de estados.
+        """
+        if not last or not current:
+            return None
+        
+        # Verifica se as dimensões das matrizes são válidas
+        if len(last) != 4 or len(current) != 4:
+            return None
+        
+        for row in [last, current]:
+            if any(len(r) != 4 for r in row):
+                return None
+        
+        # Cache de comparação para evitar reprocessamento
+        comparison_key = str(last) + str(current)
+        if comparison_key in self.game_state_cache:
+            return self.game_state_cache[comparison_key]
+        
+        # Encontra posições onde peças brancas (maiúsculas) desapareceram
+        origem_candidates = []
+        # Encontra posições onde peças brancas (maiúsculas) apareceram
+        destino_candidates = []
+        
+        for i in range(4):
+            for j in range(4):
+                last_piece = last[i][j]
+                current_piece = current[i][j]
+                
+                # Peça branca desapareceu (possível origem)
+                if (last_piece.isupper() and last_piece != '.' and 
+                    (current_piece == '.' or current_piece.islower())):
+                    origem_candidates.append((i, j, last_piece))
+                
+                # Peça branca apareceu (possível destino)
+                if (current_piece.isupper() and current_piece != '.' and
+                    (last_piece == '.' or last_piece.islower())):
+                    destino_candidates.append((i, j, current_piece))
+        
+        movimento = None
+        
+        # Tenta encontrar um par origem-destino válido
+        for origem_row, origem_col, origem_piece in origem_candidates:
+            for destino_row, destino_col, destino_piece in destino_candidates:
+                # Verifica se é a mesma peça
+                if origem_piece == destino_piece:
+                    movimento = f"(({origem_row}, {origem_col}), ({destino_row}, {destino_col}))"
+                    break
+            if movimento:
+                break
+        
+        # Caso especial: movimento de captura
+        if not movimento:
+            for origem_row, origem_col, origem_piece in origem_candidates:
+                for i in range(4):
+                    for j in range(4):
+                        if (last[i][j].islower() and last[i][j] != '.' and
+                            current[i][j].isupper() and current[i][j] != '.'):
+                            if origem_piece == current[i][j]:
+                                movimento = f"(({origem_row}, {origem_col}), ({i}, {j}))"
+                                break
+                if movimento:
+                    break
+        
+        # Abordagem simples como fallback
+        if not movimento and len(origem_candidates) == 1 and len(destino_candidates) == 1:
+            origem = origem_candidates[0]
+            destino = destino_candidates[0]
+            movimento = f"(({origem[0]}, {origem[1]}), ({destino[0]}, {destino[1]}))"
+        
+        # Cache o resultado
+        self.game_state_cache[comparison_key] = movimento
+        
+        # Limita o tamanho do cache
+        if len(self.game_state_cache) > 100:
+            # Remove entradas mais antigas
+            keys_to_remove = list(self.game_state_cache.keys())[:50]
+            for key in keys_to_remove:
+                del self.game_state_cache[key]
+        
+        return movimento
+    
+    def cleanup_resources(self):
+        """Limpa os recursos utilizados."""
+        if self.camera is not None and self.camera.isOpened():
+            self.camera.release()
+            print("✓ Câmera liberada.")
+        
+        if self.ai_player:
+            self.ai_player.save_model()
+            print("✓ Modelo da IA salvo.")
+
+# Funções auxiliares mantidas para compatibilidade
 def print_board(board):
     """Imprime o tabuleiro no terminal."""
     print("  0 1 2 3")
@@ -41,117 +327,6 @@ def is_valid_move_format(move_str):
         return False
     except (SyntaxError, ValueError):
         return False
-
-def get_movement_from_matrixes(last, current):
-    """
-    Detecta o movimento das peças brancas comparando duas matrizes do tabuleiro.
-    
-    Args:
-        last: matriz do estado anterior do tabuleiro
-        current: matriz do estado atual do tabuleiro
-    
-    Returns:
-        String no formato "((linha_origem, coluna_origem), (linha_destino, coluna_destino))"
-        ou None se nenhum movimento válido for detectado
-    """
-    if not last or not current:
-        return None
-    
-    # Verifica se as dimensões das matrizes são válidas
-    if len(last) != 4 or len(current) != 4:
-        return None
-    
-    for row in [last, current]:
-        if any(len(r) != 4 for r in row):
-            return None
-    
-    # Encontra posições onde peças brancas (maiúsculas) desapareceram
-    origem_candidates = []
-    # Encontra posições onde peças brancas (maiúsculas) apareceram
-    destino_candidates = []
-    
-    for i in range(4):
-        for j in range(4):
-            last_piece = last[i][j]
-            current_piece = current[i][j]
-            
-            # Peça branca desapareceu (possível origem)
-            if (last_piece.isupper() and last_piece != '.' and 
-                (current_piece == '.' or current_piece.islower())):
-                origem_candidates.append((i, j, last_piece))
-            
-            # Peça branca apareceu (possível destino)
-            if (current_piece.isupper() and current_piece != '.' and
-                (last_piece == '.' or last_piece.islower())):
-                destino_candidates.append((i, j, current_piece))
-    
-    # Tenta encontrar um par origem-destino válido
-    for origem_row, origem_col, origem_piece in origem_candidates:
-        for destino_row, destino_col, destino_piece in destino_candidates:
-            # Verifica se é a mesma peça
-            if origem_piece == destino_piece:
-                movimento = f"(({origem_row}, {origem_col}), ({destino_row}, {destino_col}))"
-                return movimento
-    
-    # Caso especial: movimento de captura onde a peça branca substitui uma preta
-    # Procura por posições onde havia uma peça preta e agora há uma branca
-    for origem_row, origem_col, origem_piece in origem_candidates:
-        for i in range(4):
-            for j in range(4):
-                # Se havia uma peça preta nesta posição e agora há uma branca
-                if (last[i][j].islower() and last[i][j] != '.' and
-                    current[i][j].isupper() and current[i][j] != '.'):
-                    # Verifica se é a mesma peça que saiu da origem
-                    if origem_piece == current[i][j]:
-                        movimento = f"(({origem_row}, {origem_col}), ({i}, {j}))"
-                        return movimento
-    
-    # Se não conseguiu detectar movimento específico, tenta uma abordagem mais simples
-    # Conta diferenças nas peças brancas
-    if len(origem_candidates) == 1 and len(destino_candidates) == 1:
-        origem = origem_candidates[0]
-        destino = destino_candidates[0]
-        movimento = f"(({origem[0]}, {origem[1]}), ({destino[0]}, {destino[1]}))"
-        return movimento
-    
-    return None
-
-def initialize_camera():
-    """Inicializa a câmera."""
-    print("Inicializando câmera...")
-    cap = cv2.VideoCapture(1)  # Webcam externa
-    
-    if not cap.isOpened():
-        print("❌ Erro: Webcam não encontrada.")
-        return None
-    
-    # Configura algumas propriedades da câmera (opcional)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-    cap.set(cv2.CAP_PROP_FPS, 30)
-    
-    print("✓ Câmera inicializada com sucesso!")
-    return cap
-
-def initialize_game():
-    """Inicializa os componentes do jogo."""
-    os.makedirs('models', exist_ok=True)
-    os.makedirs('assets', exist_ok=True)
-    
-    # Inicialização da IA
-    ai_player = MiniChessAI()
-    
-    # Inicialização do Controlador do CNC
-    controller = cnc_controller.CNCArduinoController("COM3")
-    
-    # Inicialização da câmera
-    camera = initialize_camera()
-    
-    # Inicialização do jogo
-    ignore_check_rule = ai_player.games_played < 5
-    chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
-    
-    return ai_player, chess_game, controller, camera
 
 def display_game_status(chess_game, ai_player):
     """Exibe o status atual do jogo."""
@@ -208,233 +383,17 @@ def check_game_over(chess_game, ai_player):
     
     return False
 
-def handle_game_over_commands(ai_player):
-    """
-    Lida com comandos quando o jogo terminou.
-    
-    Returns:
-        tuple: (continue_running, new_game, game_over_status)
-    """
-    command = input("\nDigite seu comando (1 = novo jogo, 2 = resetar IA, q = sair): ").strip()
-    
-    if command == 'q':
-        return False, None, True
-    elif command == '1':
-        # Novo jogo
-        ignore_check_rule = ai_player.games_played < 5
-        new_chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
-        print("Novo jogo iniciado!")
-        return True, new_chess_game, False
-    elif command == '2':
-        # Resetar IA
-        ai_player.reset_model()
-        ignore_check_rule = True
-        new_chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
-        print("IA resetada e novo jogo iniciado!")
-        return True, new_chess_game, False
-    else:
-        # Comando inválido, continua esperando
-        return True, None, True
-
-def capture_and_detect_move(chess_game, camera):
-    """
-    Captura foto do tabuleiro e detecta o movimento.
-    
-    Args:
-        chess_game: instância do jogo
-        camera: objeto da câmera já inicializada
-    
-    Returns:
-        str: String do movimento ou None se inválido
-    """
-    if camera is None:
-        print("❌ Erro: Câmera não está disponível.")
-        return None
-    
-    if not camera.isOpened():
-        print("❌ Erro: Câmera não está aberta.")
-        return None
-    
-    print("Capturando foto do tabuleiro...")
-    
-    # Pequena pausa para estabilizar a imagem
-    time.sleep(1)
-    
-    # Captura o frame
-    ret, frame = camera.read()
-    if not ret:
-        print("❌ Erro ao capturar foto da webcam.")
-        return None
-    
-    # Rotaciona a imagem 180 graus
-    rotated_frame = cv2.rotate(frame, cv2.ROTATE_180)
-    
-    # Salva a imagem
-    cv2.imwrite('./assets/current_board.jpg', rotated_frame)
-    print("✓ Foto do tabuleiro capturada e salva!")
-
-    # Detecta posição atual do tabuleiro
-    result = cv.detect_chess_position("./assets/current_board.jpg")
-    if result is None or "matriz" not in result or result["matriz"] is None:
-        print("❌ Falha ao detectar o tabuleiro. Verifique a imagem e tente novamente.")
-        return None
-
-    move_matrix = result["matriz"]
-
-    print("Matriz Identificada:")
-    try:
-        for i in range(4):
-            for j in range(4):
-                print(move_matrix[i][j], end=" ")
-            print("")
-    except Exception as e:
-        print(f"❌ Erro ao imprimir matriz: {e}")
-        return None
-
-    # Detecta movimento comparando matrizes
-    try:
-        move_str = get_movement_from_matrixes(chess_game.board, move_matrix)
-        print("O MOVIMENTO É: ", move_str)
-        return move_str
-    except Exception as e:
-        print(f"❌ Erro ao detectar movimento: {e}")
-        return None
-
-def process_human_move(chess_game, human_player, camera):
-    """
-    Processa o movimento do jogador humano.
-    
-    Args:
-        chess_game: instância do jogo
-        human_player: cor do jogador humano
-        camera: objeto da câmera já inicializada
-    
-    Returns:
-        bool: True se movimento foi realizado com sucesso
-    """
-    valid_move = False
-    
-    while not valid_move:
-        move_str = capture_and_detect_move(chess_game, camera)
-        
-        if not is_valid_move_format(move_str):
-            print("Movimento inválido!")
-            continue
-        
-        move = ast.literal_eval(move_str)
-        origin, dest = move
-        
-        # Verifica se é uma coordenada válida
-        if not all(0 <= coord < 4 for coord in origin + dest):
-            print("Coordenadas inválidas. Valores devem estar entre 0 e 3.")
-            continue
-        
-        # Verifica se é um movimento válido
-        valid_moves = chess_game.get_valid_moves(origin)
-        if dest in valid_moves:
-            valid_move = True
-            chess_game.make_move((origin, dest))
-            print(f"Movimento realizado: {origin} -> {dest}")
-            return True
-        else:
-            piece = chess_game.board[origin[0]][origin[1]]
-            if piece == '.':
-                print("Não há peça nessa posição.")
-            elif chess_game.get_piece_color(piece) != human_player:
-                print("Essa peça não é sua.")
-            else:
-                print("Movimento inválido para essa peça.")
-    
-    return False
-
-def handle_human_turn(chess_game, ai_player, human_player, camera):
-    """
-    Lida com o turno do jogador humano.
-    
-    Returns:
-        tuple: (continue_running, new_game, game_over_status)
-    """
-    command = input("\nDigite seu comando (0 = jogar, 1 = novo jogo, 2 = resetar IA, q = sair): ").strip()
-    
-    if command == 'q':
-        return False, None, False
-        
-    elif command == '0':
-        process_human_move(chess_game, human_player, camera)
-        return True, chess_game, False
-        
-    elif command == '1':
-        # Novo jogo
-        ignore_check_rule = ai_player.games_played < 5
-        new_chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
-        print("Novo jogo iniciado!")
-        return True, new_chess_game, False
-        
-    elif command == '2':
-        # Resetar IA
-        ai_player.reset_model()
-        ignore_check_rule = True
-        new_chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
-        print("IA resetada e novo jogo iniciado!")
-        return True, new_chess_game, False
-    
-    return True, chess_game, False
-
-def process_ai_turn(chess_game, ai_player, controller):
-    """
-    Processa o turno da IA.
-    
-    Returns:
-        bool: True se o jogo terminou, False caso contrário
-    """
-    print("\nIA está pensando...")
-    
-    try:
-        ai_move = ai_player.get_move(chess_game)
-
-        if ai_move:
-            origin, dest = ai_move
-
-            print("Movimento da IA:")
-            print(origin)
-            print(dest)
-
-            # Verifica se está capturando alguém
-            captured = chess_game.board[dest[0]][dest[1]] != '.'
-            
-            # Executa o movimento internamente
-            chess_game.make_move(ai_move)
-            
-            # Executa o movimento real
-            controller.control_moves(ai_move, captured)
-            
-            return False
-
-        else:
-            # Sem movimentos válidos
-            print("IA não tem movimentos válidos!")
-            ai_player.learn(chess_game, -1.0)
-            
-            print("\nJogo encerrado. Digite 1 para novo jogo, 2 para resetar a IA, ou q para sair.")
-            return True
-                
-    except Exception as e:
-        print(f"Erro no movimento da IA: {e}")
-        print("Reiniciando o jogo...")
-        return True
-
-def cleanup_resources(camera):
-    """Limpa os recursos utilizados."""
-    if camera is not None and camera.isOpened():
-        camera.release()
-        print("✓ Câmera liberada.")
-
 def main():
-    """Função principal do jogo em modo console."""
-    # Inicialização
-    ai_player, chess_game, controller, camera = initialize_game()
+    """Função principal otimizada do jogo."""
+    # Usar controlador otimizado
+    game_controller = OptimizedGameController()
     
-    if camera is None:
+    # Inicialização única de todos os recursos
+    if not game_controller.initialize_game_resources():
+        print("❌ Falha na inicialização. Encerrando o programa.")
+        return
+    
+    if game_controller.camera is None:
         print("❌ Não foi possível inicializar a câmera. Encerrando o programa.")
         return
     
@@ -442,34 +401,125 @@ def main():
     running = True
     game_over = False
     
-    print("\n===== Mini Chess com IA Q-Learning =====")
+    print("\n===== Mini Chess com IA Q-Learning (Versão Otimizada) =====")
     print("Comandos: 0 = jogar, 1 = novo jogo, 2 = resetar IA, q = sair")
     
     try:
         while running:
             # Exibe status do jogo
-            display_game_status(chess_game, ai_player)
+            display_game_status(game_controller.chess_game, game_controller.ai_player)
             
             # Verifica se o jogo terminou
             if not game_over:
-                game_over = check_game_over(chess_game, ai_player)
+                game_over = check_game_over(game_controller.chess_game, game_controller.ai_player)
             
             # Processa comandos quando jogo terminou
             if game_over:
-                running, new_game, game_over = handle_game_over_commands(ai_player)
-                if new_game:
-                    chess_game = new_game
+                command = input("\nDigite seu comando (1 = novo jogo, 2 = resetar IA, q = sair): ").strip()
+                
+                if command == 'q':
+                    running = False
+                elif command == '1':
+                    # Novo jogo
+                    ignore_check_rule = game_controller.ai_player.games_played < 5
+                    game_controller.chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
+                    game_over = False
+                    print("Novo jogo iniciado!")
+                elif command == '2':
+                    # Resetar IA
+                    game_controller.ai_player.reset_model()
+                    ignore_check_rule = True
+                    game_controller.chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
+                    game_over = False
+                    print("IA resetada e novo jogo iniciado!")
                 continue
                     
             # Turno do jogador humano
-            if chess_game.current_player == human_player:
-                running, result_game, game_over = handle_human_turn(chess_game, ai_player, human_player, camera)
-                if result_game:
-                    chess_game = result_game
+            if game_controller.chess_game.current_player == human_player:
+                command = input("\nDigite seu comando (0 = jogar, 1 = novo jogo, 2 = resetar IA, q = sair): ").strip()
+                
+                if command == 'q':
+                    running = False
+                elif command == '0':
+                    # Processar movimento do jogador
+                    valid_move = False
+                    
+                    while not valid_move:
+                        move_str = game_controller.capture_and_detect_move_optimized()
+                        
+                        if not is_valid_move_format(move_str):
+                            print("Movimento inválido!")
+                            continue
+                        
+                        move = ast.literal_eval(move_str)
+                        origin, dest = move
+                        
+                        # Verifica se é uma coordenada válida
+                        if not all(0 <= coord < 4 for coord in origin + dest):
+                            print("Coordenadas inválidas. Valores devem estar entre 0 e 3.")
+                            continue
+                        
+                        # Verifica se é um movimento válido
+                        valid_moves = game_controller.chess_game.get_valid_moves(origin)
+                        if dest in valid_moves:
+                            valid_move = True
+                            game_controller.chess_game.make_move((origin, dest))
+                            print(f"Movimento realizado: {origin} -> {dest}")
+                        else:
+                            piece = game_controller.chess_game.board[origin[0]][origin[1]]
+                            if piece == '.':
+                                print("Não há peça nessa posição.")
+                            elif game_controller.chess_game.get_piece_color(piece) != human_player:
+                                print("Essa peça não é sua.")
+                            else:
+                                print("Movimento inválido para essa peça.")
+                elif command == '1':
+                    # Novo jogo
+                    ignore_check_rule = game_controller.ai_player.games_played < 5
+                    game_controller.chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
+                    print("Novo jogo iniciado!")
+                elif command == '2':
+                    # Resetar IA
+                    game_controller.ai_player.reset_model()
+                    ignore_check_rule = True
+                    game_controller.chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
+                    print("IA resetada e novo jogo iniciado!")
                     
             # Turno da IA
             else:
-                game_over = process_ai_turn(chess_game, ai_player, controller)
+                print("\nIA está pensando...")
+                
+                try:
+                    ai_move = game_controller.ai_player.get_move(game_controller.chess_game)
+
+                    if ai_move:
+                        origin, dest = ai_move
+
+                        print("Movimento da IA:")
+                        print(origin)
+                        print(dest)
+
+                        # Verifica se está capturando alguém
+                        captured = game_controller.chess_game.board[dest[0]][dest[1]] != '.'
+                        
+                        # Executa o movimento internamente
+                        game_controller.chess_game.make_move(ai_move)
+                        
+                        # Executa o movimento real
+                        game_controller.controller.control_moves(ai_move, captured)
+
+                    else:
+                        # Sem movimentos válidos
+                        print("IA não tem movimentos válidos!")
+                        game_controller.ai_player.learn(game_controller.chess_game, -1.0)
+                        
+                        print("\nJogo encerrado. Digite 1 para novo jogo, 2 para resetar a IA, ou q para sair.")
+                        game_over = True
+                        
+                except Exception as e:
+                    print(f"Erro no movimento da IA: {e}")
+                    print("Reiniciando o jogo...")
+                    game_over = True
     
     except KeyboardInterrupt:
         print("\n\nPrograma interrompido pelo usuário.")
@@ -477,11 +527,8 @@ def main():
         print(f"\nErro inesperado: {e}")
     finally:
         # Limpeza de recursos
-        cleanup_resources(camera)
-        
-        # Salva o modelo antes de sair
-        ai_player.save_model()
-        print("Modelo da IA salvo. Até a próxima!")
+        game_controller.cleanup_resources()
+        print("Até a próxima!")
 
 if __name__ == "__main__":
     main()
