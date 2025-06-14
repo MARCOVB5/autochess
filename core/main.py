@@ -111,8 +111,7 @@ class OptimizedGameController:
             self.camera = self._initialize_camera()
             
             # Inicialização do jogo
-            ignore_check_rule = self.ai_player.games_played < 5
-            self.chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
+            self.chess_game = MiniChess(ignore_check_rule=True)
             
             return True
             
@@ -383,6 +382,37 @@ def check_game_over(chess_game, ai_player):
     
     return False
 
+import sys
+import os
+
+def get_single_key():
+    """Captura uma única tecla sem precisar pressionar Enter."""
+    try:
+        # Windows
+        if os.name == 'nt':
+            import msvcrt
+            while True:
+                if msvcrt.kbhit():
+                    key = msvcrt.getch().decode('utf-8').lower()
+                    return key
+        # Linux/Mac
+        else:
+            import termios
+            import tty
+            
+            fd = sys.stdin.fileno()
+            old_settings = termios.tcgetattr(fd)
+            try:
+                tty.setraw(sys.stdin.fileno())
+                key = sys.stdin.read(1).lower()
+                return key
+            finally:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    except ImportError:
+        # Fallback para input normal se as bibliotecas não estiverem disponíveis
+        print("(Pressione Enter após digitar)")
+        return input().strip().lower()
+
 def main():
     """Função principal otimizada do jogo."""
     # Usar controlador otimizado
@@ -403,6 +433,7 @@ def main():
     
     print("\n===== Mini Chess com IA Q-Learning (Versão Otimizada) =====")
     print("Comandos: 0 = jogar, 1 = novo jogo, 2 = resetar IA, q = sair")
+    print("Pressione apenas a tecla desejada (sem Enter)")
     
     try:
         while running:
@@ -415,28 +446,32 @@ def main():
             
             # Processa comandos quando jogo terminou
             if game_over:
-                command = input("\nDigite seu comando (1 = novo jogo, 2 = resetar IA, q = sair): ").strip()
+                print("\nDigite seu comando (1 = novo jogo, 2 = resetar IA, q = sair): ", end='', flush=True)
+                command = get_single_key()
+                print(command)  # Mostra a tecla pressionada
                 
                 if command == 'q':
                     running = False
                 elif command == '1':
                     # Novo jogo
-                    ignore_check_rule = game_controller.ai_player.games_played < 5
-                    game_controller.chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
+                    game_controller.chess_game = MiniChess(ignore_check_rule=True)
                     game_over = False
                     print("Novo jogo iniciado!")
                 elif command == '2':
                     # Resetar IA
                     game_controller.ai_player.reset_model()
-                    ignore_check_rule = True
-                    game_controller.chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
+                    game_controller.chess_game = MiniChess(ignore_check_rule=True)
                     game_over = False
                     print("IA resetada e novo jogo iniciado!")
+                else:
+                    print("Comando inválido!")
                 continue
                     
             # Turno do jogador humano
             if game_controller.chess_game.current_player == human_player:
-                command = input("\nDigite seu comando (0 = jogar, 1 = novo jogo, 2 = resetar IA, q = sair): ").strip()
+                print("\nDigite seu comando (0 = jogar, 1 = novo jogo, 2 = resetar IA, q = sair): ", end='', flush=True)
+                command = get_single_key()
+                print(command)  # Mostra a tecla pressionada
                 
                 if command == 'q':
                     running = False
@@ -475,15 +510,17 @@ def main():
                                 print("Movimento inválido para essa peça.")
                 elif command == '1':
                     # Novo jogo
-                    ignore_check_rule = game_controller.ai_player.games_played < 5
-                    game_controller.chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
+                    game_controller.chess_game = MiniChess(ignore_check_rule=True)
+                    game_over = False
                     print("Novo jogo iniciado!")
                 elif command == '2':
                     # Resetar IA
                     game_controller.ai_player.reset_model()
-                    ignore_check_rule = True
-                    game_controller.chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
+                    game_controller.chess_game = MiniChess(ignore_check_rule=True)
+                    game_over = False
                     print("IA resetada e novo jogo iniciado!")
+                else:
+                    print("Comando inválido!")
                     
             # Turno da IA
             else:

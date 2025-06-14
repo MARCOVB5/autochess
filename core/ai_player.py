@@ -457,72 +457,57 @@ class MiniChessAI:
     
     def evaluate_board(self, game, player):
         """
-        Avalia a posição atual do tabuleiro para um determinado jogador
-        Valor mais alto é melhor para o jogador
+        Avalia o estado do tabuleiro para o jogador especificado.
+        Retorna um valor numérico onde valores maiores são melhores.
         """
-        # Pesos para peças
-        piece_values = {
-            'p': 10,  # Peão
-            'r': 50,  # Torre
-            'q': 90,  # Rainha
-            'k': 1000  # Rei (muito valioso)
-        }
-        
-        # Pontuação baseada nas peças que restam no tabuleiro
         score = 0
         opponent = 'b' if player == 'w' else 'w'
         
+        # Valores das peças
+        piece_values = {
+            'p': 1,   # Peão
+            'r': 5,   # Torre
+            'q': 9,   # Rainha
+            'k': 100  # Rei
+        }
+        
+        # Avalia material e posição
         for row in range(4):
             for col in range(4):
                 piece = game.board[row][col]
                 if piece == '.':
                     continue
-                
+                    
                 piece_type = piece.lower()
                 piece_color = game.get_piece_color(piece)
                 
+                # Valor base da peça
+                value = piece_values[piece_type]
+                
+                # Ajusta o valor baseado na cor
                 if piece_color == player:
-                    score += piece_values[piece_type]
+                    score += value
                 else:
-                    score -= piece_values[piece_type]
+                    score -= value
         
-        # Penalidades e bônus
+        # Bônus para posições que atacam o rei adversário
+        opponent_king_pos = game.king_positions[opponent]
+        for row in range(4):
+            for col in range(4):
+                piece = game.board[row][col]
+                if piece != '.' and game.get_piece_color(piece) == player:
+                    # Verifica se a peça pode atacar o rei
+                    moves = game.get_basic_moves((row, col))
+                    if opponent_king_pos in moves:
+                        # Bônus maior para peças que podem dar xeque-mate
+                        if game.is_check(opponent):
+                            score += 50  # Bônus muito alto para posições de xeque-mate
+                        else:
+                            score += 20  # Bônus para atacar o rei
         
-        # Bônus por xeque
-        if game.is_check(opponent):
-            score += 15
-        
-        # Penalização por estar em xeque
+        # Penalidade para deixar o próprio rei em xeque
         if game.is_check(player):
-            score -= 15
-        
-        # Bônus muito alto para xeque-mate
-        if game.is_checkmate() and game.current_player != player:
-            score += 1000
-        
-        # Penalização muito alta para ser xeque-mateado
-        if game.is_checkmate() and game.current_player == player:
-            score -= 1000
-        
-        # Considera a mobilidade (número de movimentos disponíveis)
-        original_player = game.current_player
-        
-        # Temporariamente mudamos o jogador para calcular os movimentos válidos
-        if original_player != player:
-            game.current_player = player
-            
-        player_moves = len(game.get_all_valid_moves(player))
-        
-        if original_player != player:
-            game.current_player = opponent
-            
-        opponent_moves = len(game.get_all_valid_moves(opponent))
-        
-        # Restaura o jogador atual
-        game.current_player = original_player
-        
-        # Mobilidade é um fator importante
-        score += 0.1 * (player_moves - opponent_moves)
+            score -= 30
         
         return score
     
