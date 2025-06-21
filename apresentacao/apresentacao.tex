@@ -253,6 +253,20 @@
 \end{itemize}
 \end{frame}
 
+\begin{frame}{Parâmetros do Q-Learning e $\varepsilon$-gulosa}
+\begin{itemize}
+  \item \textbf{Taxa de aprendizado} \(\alpha\): \\
+        \(\rightarrow\) Valor utilizado: \(\alpha = 0.5\).
+  
+  \item \textbf{Fator de desconto} \(\gamma\):  \\
+        \(\rightarrow\) Valor utilizado: \(\gamma = 0.9\).
+  
+  \item \textbf{Taxa de exploração} \(\varepsilon\) (estratégia $\varepsilon$-gulosa): \\
+        \(\rightarrow\) Inicialmente alta (ex: 0.9), decresce ao longo do treinamento para valores baixos (ex: 0.1 ou 0.01).
+\end{itemize}
+\end{frame}
+
+
 \begin{frame}[fragile]{Q-Learning}
 \begin{center}
 \begin{minipage}{0.85\linewidth} % ajusta a largura do algoritmo
@@ -480,3 +494,4 @@
 
 
 \end{document}
+
