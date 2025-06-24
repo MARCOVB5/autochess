@@ -1,0 +1,45 @@
+# Ignora tudo, exceto arquivos fonte e PDF final
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.blg
+*.lof
+*.lot
+*.lol
+*.run.xml
+*.xdv
+*.bcf
+*.acn
+*.acr
+*.alg
+*.glg
+*.glo
+*.gls
+*.ist
+*.idx
+*.ilg
+*.ind
+*.dvi
+*.ps
+*.upa
+*.upb
+*.vrb
+
+# Diretórios temporários comuns
+_auto/
+_build/
+latex.out/
+tmp/
+*.tmp
+
+# MacOS / Linux / Windows lixo
+.DS_Store
+Thumbs.db
+

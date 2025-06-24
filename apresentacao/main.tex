@@ -100,11 +100,6 @@
 
 \begin{frame}[plain]{Idealização do projeto elétrico}
   \centering
-  \includegraphics[width=\paperwidth,height=0.9\paperheight,keepaspectratio]{images/projeto_eletrico_png.png}
-\end{frame}
-
-\begin{frame}[plain]{Idealização do projeto elétrico}
-  \centering
   \includegraphics[width=\paperwidth,height=0.8\paperheight,keepaspectratio]{images/diagramaeletronico.png}
 \end{frame}
 
@@ -159,7 +154,7 @@
 
 \begin{frame}{Vantagens do CoreXY}
 \begin{itemize}
-  \item Cabeçote leve (motores não se movem junto).
+  \item Motores não se movem junto.
   \item Alta velocidade e aceleração.
   \item Estrutura simétrica e eficiente no uso do espaço.
   \item Redução de inércia no movimento.
@@ -209,6 +204,55 @@
 
 
 \section{Software}
+
+
+\begin{frame}{Visão Computacional}
+\begin{itemize}
+    \item Para identificar o estado do jogo automaticamente, foi necessário utilizar técnicas de visão computacional sobre imagens capturadas por uma câmera fixa.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Visão Computacional}
+      \begin{alertblock}{Desafios enfrentados}
+          \begin{itemize}
+        \item Segmentação precisa da área do tabuleiro, mesmo com distorções da câmera.
+        \item Diferenciação entre peças brancas e pretas sob diferentes condições de iluminação.
+        \item Identificação das peças no tabuleiro, considerando posições variadas.
+    \end{itemize}    
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Visão Computacional}
+  \begin{exampleblock}{Solução adotada}
+        \begin{itemize}
+        \item Utilizamos o \textbf{SIFT (Scale-Invariant Feature Transform)} para detecção de pontos-chave robustos.
+        \item Detecção de contornos das figuras das peças e extremidades do tabuleiro.
+        \item As descrições extraídas com SIFT permitiram realizar \textit{matching} entre peças reais e modelos de referência.
+    \end{itemize}
+  \end{exampleblock}
+
+\end{frame}
+
+\begin{frame}[plain]{Implementação do SIFT - Exemplos}
+  \centering
+\includegraphics[width=0.95\paperwidth,keepaspectratio]{images/exemplo4_cv.png}
+\end{frame}
+
+\begin{frame}[plain]{Implementação do SIFT - Exemplos}
+  \centering
+\includegraphics[width=0.95\paperwidth,keepaspectratio]{images/exemplo3_cv.png}
+\end{frame}
+
+\begin{frame}[plain]{Implementação do SIFT - Exemplos}
+  \centering
+\includegraphics[width=0.95\paperwidth,keepaspectratio]{images/exemplo1_cv.png}
+\end{frame}
+
+\begin{frame}[plain]{Implementação do SIFT - Exemplos}
+  \centering
+\includegraphics[width=0.95\paperwidth,keepaspectratio]{images/exemplo2_cv.png}
+\end{frame}
+
 
 
 \begin{frame}{Minichess 4×4 – Variante Silverman}
@@ -290,47 +334,6 @@
 \end{frame}
 
 
-\begin{frame}{Q-Learning}
-\begin{center}
-\scalebox{0.8}{ % Reduz o tamanho geral do fluxograma
-\begin{tikzpicture}[node distance=1.2cm and 1.7cm]
-\tikzstyle{startstop} = [rectangle, rounded corners, minimum width=2.5cm, minimum height=0.9cm, text centered, draw=black, fill=blue!20, font=\small]
-\tikzstyle{process}   = [rectangle, minimum width=2.5cm, minimum height=0.9cm, text centered, draw=black, fill=gray!10, font=\small]
-\tikzstyle{decision}  = [diamond, minimum width=2.6cm, minimum height=0.9cm, text centered, draw=black, fill=orange!20, font=\small]
-\tikzstyle{arrow}     = [thick, ->, >=stealth]
-
-\node (start)  [startstop] {Início do Episódio};
-\node (init)   [process, below of=start] {Inicializa $s$};
-\node (check)  [decision, below of=init, yshift=-0.9cm] {Fim do jogo?};
-\node (action) [process, right of=check, xshift=3.5cm] {Escolhe ação $a$};
-\node (step)   [process, below of=action] {Executa $a$, observa $r$, $s'$};
-\node (update) [process, below of=step] {Atualiza $Q(s,a)$};
-\node (loop)   [process, below of=update] {$s \leftarrow s'$};
-\node (end)    [startstop, below of=check, yshift=-3.8cm] {Fim do Episódio};
-
-% Setas principais
-\draw [arrow] (start) -- (init);
-\draw [arrow] (init) -- (check);
-
-% Seta "não" - usando anchors específicos para evitar sobreposição
-\draw [arrow] (check.east) -- node[above] {\footnotesize não} (action.west);
-
-% Setas do loop principal
-\draw [arrow] (action) -- (step);
-\draw [arrow] (step) -- (update);
-\draw [arrow] (update) -- (loop);
-
-% Seta de volta para o check - corrigindo direção da seta
-\draw [arrow] (loop.west) -| ++(-4.5,2.4) -| (check.west);
-
-% Seta "sim" - usando anchor específico
-\draw [arrow] (check.south) -- node[right] {\footnotesize sim} (end.north);
-
-\end{tikzpicture}
-}
-\end{center}
-\end{frame}
-
 \begin{frame}{Metodologia de Avaliação da IA}
   \begin{itemize}
     \item \textbf{Número de sessões:} 30 sessões distintas, com reinicialização da IA ao início de cada sessão.
@@ -369,53 +372,15 @@
   \includegraphics[width=\paperwidth,height=0.7\paperheight,keepaspectratio]{images/blunders_niveis.png}
 \end{frame}
 
+\begin{frame}[plain]{\textit{Core}}
 
-\begin{frame}{Visão Computacional}
 \begin{itemize}
-    \item Para identificar o estado do jogo automaticamente, foi necessário utilizar técnicas de visão computacional sobre imagens capturadas por uma câmera fixa.
+    \item Um programa denominado \textit{Core} ficou encarregado da integração entre visão computacional, IA e o movimento da CNC.
+     \item É o cérebro do projeto.
 \end{itemize}
-\end{frame}
-
-\begin{frame}{Visão Computacional}
-      \begin{alertblock}{Desafios enfrentados}
-          \begin{itemize}
-        \item Segmentação precisa da área do tabuleiro, mesmo com distorções da câmera.
-        \item Diferenciação entre peças brancas e pretas sob diferentes condições de iluminação.
-        \item Identificação das peças no tabuleiro, considerando posições variadas.
-    \end{itemize}    
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{Visão Computacional}
-  \begin{exampleblock}{Solução adotada}
-        \begin{itemize}
-        \item Utilizamos o \textbf{SIFT (Scale-Invariant Feature Transform)} para detecção de pontos-chave robustos.
-        \item Detecção de contornos das figuras das peças e extremidades do tabuleiro.
-        \item As descrições extraídas com SIFT permitiram realizar \textit{matching} entre peças reais e modelos de referência.
-    \end{itemize}
-  \end{exampleblock}
 
 \end{frame}
 
-\begin{frame}[plain]{Implementação do SIFT - Exemplos}
-  \centering
-\includegraphics[width=0.95\paperwidth,keepaspectratio]{images/exemplo4_cv.png}
-\end{frame}
-
-\begin{frame}[plain]{Implementação do SIFT - Exemplos}
-  \centering
-\includegraphics[width=0.95\paperwidth,keepaspectratio]{images/exemplo3_cv.png}
-\end{frame}
-
-\begin{frame}[plain]{Implementação do SIFT - Exemplos}
-  \centering
-\includegraphics[width=0.95\paperwidth,keepaspectratio]{images/exemplo1_cv.png}
-\end{frame}
-
-\begin{frame}[plain]{Implementação do SIFT - Exemplos}
-  \centering
-\includegraphics[width=0.95\paperwidth,keepaspectratio]{images/exemplo2_cv.png}
-\end{frame}
 
 \section{Resultados}
 
@@ -427,7 +392,7 @@
         \end{itemize}
     \item \textbf{Mecânica}:
         \begin{itemize}
-            \item Estrutura do braço CNC forte e confiável;
+            \item Estrutura do braço CNC forte e confiável (desvio médio inferior a 2mm);
             \item Peças de xadrez 3D respondendo perfeitamente às atrações magnéticas.
         \end{itemize}
     \item \textbf{Software}:
@@ -451,7 +416,7 @@
         \end{itemize}
     \item \textbf{Software}:
         \begin{itemize}
-            \item Visão Computacional tomando muito tempo para processamento de tabuleiro cheio.
+            \item Visão Computacional tomando muito tempo para processamento de tabuleiro cheio (média de 3,2 segundos).
         \end{itemize}
   \end{itemize}
 \end{frame}
@@ -481,10 +446,8 @@
 \end{frame}
 
 
-
-
 \begin{frame}[plain]
-  \frametitle{Muito obrigado!}
+  \frametitle{Agradecimentos}
 
   \vspace{1.5cm}
   \centering
@@ -494,4 +457,3 @@
 
 
 \end{document}
-
