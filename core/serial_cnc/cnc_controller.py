@@ -1,17 +1,102 @@
 import serial # pyserial
+import serial.tools.list_ports
 import time
 import sys
 
+# Portas comuns a tentar caso a listagem automática não funcione
+COMMON_CNC_PORTS = [
+    "COM3", "COM4", "COM5", "COM6",
+    "/dev/ttyUSB0", "/dev/ttyUSB1",
+    "/dev/ttyACM0", "/dev/ttyACM1",
+]
+
+
+def find_cnc_port(baudrate=115200, timeout=1, probe_command="G90"):
+    """
+    Tenta descobrir automaticamente a porta serial do Arduino/CNC.
+
+    Estratégia:
+    1. Lista todas as portas disponíveis via pyserial.
+    2. Tenta abrir cada uma e enviar um comando G-code seguro (G90).
+    3. Retorna a primeira porta que responder com 'ok' (resposta padrão do GRBL).
+    4. Se nenhuma funcionar, tenta as portas mais comuns explicitamente.
+
+    Parâmetros:
+        baudrate (int): Taxa de transmissão
+        timeout (float): Timeout de leitura em segundos
+        probe_command (str): Comando G-code usado para testar a conexão
+
+    Retorna:
+        str: Nome da porta encontrada, ou None se nenhuma funcionar
+    """
+    print("🔍 Procurando porta do Arduino/CNC automaticamente...")
+
+    candidates = []
+
+    # 1. Portas detectadas pelo sistema
+    try:
+        detected = [p.device for p in serial.tools.list_ports.comports()]
+        candidates.extend(detected)
+    except Exception as e:
+        print(f"⚠️ Não foi possível listar portas detectadas: {e}")
+
+    # 2. Portas comuns como fallback
+    for fallback in COMMON_CNC_PORTS:
+        if fallback not in candidates:
+            candidates.append(fallback)
+
+    for port in candidates:
+        try:
+            with serial.Serial(port, baudrate, timeout=timeout) as s:
+                time.sleep(2)  # Aguarda inicialização do Arduino/GRBL
+
+                # Limpa buffers
+                s.reset_input_buffer()
+                s.reset_output_buffer()
+
+                # Envia comando de teste
+                s.write(f"{probe_command}\n".encode())
+
+                # Aguarda resposta por até 'timeout' segundos
+                deadline = time.time() + timeout
+                while time.time() < deadline:
+                    if s.in_waiting > 0:
+                        line = s.readline().decode("utf-8", errors="ignore").strip()
+                        if line:
+                            print(f"   {port} -> {line}")
+                            if line.lower() == "ok":
+                                print(f"✅ CNC encontrada na porta {port}")
+                                return port
+                    time.sleep(0.05)
+
+        except serial.SerialException as e:
+            print(f"   {port} indisponível ({e})")
+        except Exception as e:
+            print(f"   {port} erro inesperado: {e}")
+
+    print("❌ Não foi possível detectar a CNC automaticamente.")
+    print("   Verifique se o Arduino está conectado e reconhecido pelo sistema.")
+    return None
+
+
 class CNCArduinoController:
-    def __init__(self, port='COM3', baudrate=115200, timeout=1):
+    def __init__(self, port=None, baudrate=115200, timeout=1):
         """
         Inicializa a conexão com o Arduino (CNC Shield)
-        
+
         Parâmetros:
-            port (str): Porta serial (ex: 'COM3' no Windows, '/dev/ttyUSB0' no Linux)
+            port (str|None): Porta serial. Se None, tenta detectar automaticamente.
             baudrate (int): Taxa de transmissão
             timeout (float): Tempo limite para operações de leitura
         """
+        if port is None:
+            port = find_cnc_port(baudrate=baudrate, timeout=timeout)
+            if port is None:
+                print("❌ Falha ao detectar a porta do Arduino/CNC.")
+                print("   Dica: conecte o Arduino e tente novamente,")
+                print("   ou passe a porta manualmente, ex.: CNCArduinoController('COM3')")
+                sys.exit(1)
+
         self.positions = {
             0: (0.000, 0.000),  # Origem (não muda)
             
@@ -387,13 +472,10 @@ def main():
     """Interface principal do terminal para controlar a CNC"""
     print("🤖 === CONTROLADOR CNC ARDUINO ===")
     print("Conectando ao Arduino...")
-    
-    # Porta serial fixa como COM3
-    port = "COM3"
-    
+
     try:
-        # Inicializar o controlador
-        controller = CNCArduinoController(port)
+        # Inicializar o controlador (auto-detecta a porta)
+        controller = CNCArduinoController()
         
         print("✅ CNC conectada e inicializada!")
         

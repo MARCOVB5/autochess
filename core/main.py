@@ -104,8 +104,8 @@ class OptimizedGameController:
             # Inicialização da IA
             self.ai_player = MiniChessAI()
             
-            # Inicialização do Controlador do CNC
-            self.controller = cnc_controller.CNCArduinoController("COM3")
+            # Inicialização do Controlador do CNC (porta detectada automaticamente)
+            self.controller = cnc_controller.CNCArduinoController()
             
             # Inicialização da câmera
             self.camera = self._initialize_camera()
