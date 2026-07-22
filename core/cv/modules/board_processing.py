@@ -11,6 +11,45 @@ from .piece_recognition_sift import identify_piece_sift
 empty_board_reference = None
 empty_board_squares = None
 
+def _quadrilateral_score(approx_quad, img_shape):
+    """
+    Score a quadrilateral candidate for being the actual board.
+    Returns a higher score for square-ish, centered, large-enough regions.
+    """
+    pts = approx_quad.reshape(-1, 2).astype(np.float32)
+    if len(pts) != 4:
+        return -1.0
+
+    # Side lengths
+    side_lengths = [
+        np.linalg.norm(pts[i] - pts[(i + 1) % 4])
+        for i in range(4)
+    ]
+    if min(side_lengths) <= 0:
+        return -1.0
+
+    # Aspect ratio of bounding box
+    xs, ys = pts[:, 0], pts[:, 1]
+    width, height = max(xs) - min(xs), max(ys) - min(ys)
+    if width <= 0 or height <= 0:
+        return -1.0
+    aspect = max(width, height) / min(width, height)
+
+    # Area
+    area = cv2.contourArea(pts)
+    img_area = img_shape[0] * img_shape[1]
+    area_ratio = area / img_area
+
+    # Aspect ratio should be close to 1 (square board)
+    # Area should be a reasonable fraction of the image
+    if aspect > 1.6 or area_ratio < 0.05 or area_ratio > 0.98:
+        return -1.0
+
+    # Score: larger area, more square-ish
+    score = area_ratio * (1.0 / aspect)
+    return score
+
+
 def detect_board_corners(img):
     """
     Detecta os quatro cantos do tabuleiro 4x4 verde-amarelo.
@@ -50,78 +89,73 @@ def detect_board_corners(img):
     # Filtrar para encontrar o contorno do tabuleiro (maior área)
     if not contours:
         return None, combined_mask
-        
-    # Ordenar contornos por área (decrescente)
-    contours = sorted(contours, key=cv2.contourArea, reverse=True)
-    board_contour = contours[0]
     
-    # Verificar se o contorno tem área mínima
-    min_area = 10000  # Ajustar conforme necessário
-    if cv2.contourArea(board_contour) < min_area:
+    # Ordenar contornos por área (decrescente) e avaliar candidatos quadriláteros
+    contours = sorted(contours, key=cv2.contourArea, reverse=True)
+    
+    best_corners = None
+    best_score = -1.0
+    
+    for contour in contours:
+        if cv2.contourArea(contour) < 10000:
+            continue
+        
+        # Aproximar o contorno para obter os cantos
+        peri = cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, 0.02 * peri, True)
+        
+        # Tentar extrair exatamente 4 cantos
+        if len(approx) < 4:
+            hull = cv2.convexHull(contour)
+            approx = cv2.approxPolyDP(hull, 0.02 * cv2.arcLength(hull, True), True)
+        
+        candidate = approx.reshape(-1, 2).astype(np.float32)
+        if len(candidate) < 4:
+            continue
+        
+        # Reduzir para 4 pontos se tiver mais
+        if len(candidate) > 4:
+            M = cv2.moments(candidate)
+            cx = int(M['m10']/M['m00']) if M['m00'] != 0 else img.shape[1] // 2
+            cy = int(M['m01']/M['m00']) if M['m00'] != 0 else img.shape[0] // 2
+            center = np.array([cx, cy])
+            
+            quadrant_points = [[] for _ in range(4)]
+            for point in candidate:
+                x, y = point
+                quadrant = 0
+                if x >= center[0] and y < center[1]:
+                    quadrant = 1
+                elif x >= center[0] and y >= center[1]:
+                    quadrant = 2
+                elif x < center[0] and y >= center[1]:
+                    quadrant = 3
+                dist = np.linalg.norm(point - center)
+                quadrant_points[quadrant].append((dist, point))
+            
+            reduced = np.zeros((4, 2), dtype=np.float32)
+            valid = True
+            for q in range(4):
+                if quadrant_points[q]:
+                    quadrant_points[q].sort(reverse=True, key=lambda x: x[0])
+                    reduced[q] = quadrant_points[q][0][1]
+                else:
+                    valid = False
+                    break
+            
+            if not valid:
+                continue
+            candidate = reduced
+        
+        score = _quadrilateral_score(candidate, img.shape)
+        if score > best_score:
+            best_score = score
+            best_corners = order_points(candidate)
+    
+    if best_corners is None:
         return None, combined_mask
     
-    # Aproximar o contorno para obter os cantos
-    peri = cv2.arcLength(board_contour, True)
-    approx = cv2.approxPolyDP(board_contour, 0.02 * peri, True)
-    
-    # Tentar extrair exatamente 4 cantos
-    if len(approx) < 4:
-        # Caso não consiga encontrar 4 cantos diretamente, usar convex hull
-        hull = cv2.convexHull(board_contour)
-        approx = cv2.approxPolyDP(hull, 0.02 * cv2.arcLength(hull, True), True)
-    
-    # Reduzir para 4 pontos se tiver mais
-    if len(approx) > 4:
-        # Calcular centroide
-        M = cv2.moments(approx)
-        cx = int(M['m10']/M['m00']) if M['m00'] != 0 else 0
-        cy = int(M['m01']/M['m00']) if M['m00'] != 0 else 0
-        center = (cx, cy)
-        
-        # Calcular os 4 pontos mais distantes do centro em cada quadrante
-        points = []
-        for point in approx.reshape(-1, 2):
-            # Determinar o quadrante (0: superior-esquerdo, 1: superior-direito, 
-            # 2: inferior-direito, 3: inferior-esquerdo)
-            quadrant = 0
-            if point[0] >= center[0] and point[1] < center[1]:
-                quadrant = 1
-            elif point[0] >= center[0] and point[1] >= center[1]:
-                quadrant = 2
-            elif point[0] < center[0] and point[1] >= center[1]:
-                quadrant = 3
-                
-            # Calcular distância ao centro
-            dist = np.sqrt((point[0] - center[0])**2 + (point[1] - center[1])**2)
-            points.append((dist, point, quadrant))
-        
-        # Agrupar por quadrante
-        quadrant_points = [[] for _ in range(4)]
-        for dist, point, quad in points:
-            quadrant_points[quad].append((dist, point))
-            
-        # Pegar o ponto mais distante em cada quadrante
-        corners = np.zeros((4, 2), dtype=np.float32)
-        for q in range(4):
-            if quadrant_points[q]:
-                # Pegar o ponto mais distante neste quadrante
-                quadrant_points[q].sort(reverse=True)
-                corners[q] = quadrant_points[q][0][1]
-            else:
-                # Se não tiver pontos neste quadrante, estimar com base nos outros
-                if q == 0:  # Superior-esquerdo
-                    corners[q] = np.array([0, 0])
-                elif q == 1:  # Superior-direito
-                    corners[q] = np.array([img.shape[1], 0])
-                elif q == 2:  # Inferior-direito
-                    corners[q] = np.array([img.shape[1], img.shape[0]])
-                else:  # Inferior-esquerdo
-                    corners[q] = np.array([0, img.shape[0]])
-    else:
-        # Se tiver 4 pontos, ordenar em sentido horário
-        corners = order_points(approx.reshape(-1, 2))
-    
-    return corners, combined_mask
+    return best_corners, combined_mask
 
 def order_points(pts):
     """

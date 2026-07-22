@@ -209,38 +209,102 @@ class ChessPieceRecognizer:
         
         return best_match
 
+def _identify_piece_template(square_img, templates_dir='cv/assets/pure-assets', expected_color=None):
+    """
+    Identify a chess piece by grayscale template matching against the base
+    piece silhouettes. White pieces (light symbol on dark disk) are inverted
+    before matching so the symbol aligns with the dark template shape.
+
+    Returns:
+        tuple: (piece_type, confidence) or (None, 0)
+    """
+    piece_names = ['king', 'queen', 'rook', 'pawn']
+    templates = {}
+    for name in piece_names:
+        path = os.path.join(templates_dir, f"{name}.png")
+        if not os.path.exists(path):
+            continue
+        templ = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        if templ is not None:
+            templates[name] = templ
+
+    if not templates:
+        return None, 0
+
+    if len(square_img.shape) == 3:
+        gray = cv2.cvtColor(square_img, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = square_img
+
+    # White pieces have a light symbol on a dark disk. The templates are dark
+    # silhouettes on a light background, so invert white-piece squares.
+    if expected_color == 'white':
+        gray = cv2.bitwise_not(gray)
+
+    best_type = None
+    best_score = 0.55  # minimum acceptable template match score
+
+    for name, templ in templates.items():
+        h_t, w_t = templ.shape
+        local_best = 0
+        for scale in np.arange(0.25, 1.05, 0.05):
+            resized = cv2.resize(templ, (0, 0), fx=scale, fy=scale)
+            if resized.shape[0] > gray.shape[0] or resized.shape[1] > gray.shape[1]:
+                continue
+            if resized.shape[0] < 8 or resized.shape[1] < 8:
+                continue
+            res = cv2.matchTemplate(gray, resized, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, _ = cv2.minMaxLoc(res)
+            if max_val > local_best:
+                local_best = max_val
+        if local_best > best_score:
+            best_score = local_best
+            best_type = name
+
+    return best_type, best_score
+
+
 def identify_piece_sift(square_img, templates_dir='cv/assets/pure-assets', expected_color=None):
     """
-    Wrapper function to identify chess piece using SIFT
-    
+    Wrapper function to identify chess piece using SIFT and template matching.
+
     Args:
         square_img: Image of a chess square containing a piece
         templates_dir: Directory containing template images
         expected_color: Expected color of the piece ('white' or 'black'), if known
-                       (not used in template matching as templates are color-agnostic)
-        
+
     Returns:
-        tuple: (piece_type, confidence) or (None, 0) if not detected
+        tuple: (piece_type, sift_color, confidence)
     """
     # Create a singleton instance of ChessPieceRecognizer
     if not hasattr(identify_piece_sift, 'recognizer'):
         identify_piece_sift.recognizer = ChessPieceRecognizer(templates_dir)
 
-    # Process original image
+    # SIFT path
     result = identify_piece_sift.recognizer.identify_piece(square_img, expected_color)
 
     # If white piece is expected or no good match was found, try with inverted image
     if (expected_color == 'white' or (result is None or result['score'] < 0.25)) and len(square_img.shape) == 3:
-        # Invert the image colors to match template
         inverted_img = cv2.bitwise_not(square_img)
         inverted_result = identify_piece_sift.recognizer.identify_piece(inverted_img, expected_color)
-
-        # If inverted result is better, use it
         if inverted_result and (result is None or inverted_result['score'] > result['score']):
-            return inverted_result['type'], expected_color, inverted_result['score']
+            result = inverted_result
 
-    if result:
-        return result['type'], expected_color, result['score']
+    sift_type = result['type'] if result else None
+    sift_score = result['score'] if result else 0
+
+    # Template matching path
+    template_type, template_score = _identify_piece_template(
+        square_img, templates_dir=templates_dir, expected_color=expected_color
+    )
+
+    # Return the method with the higher confidence
+    if template_type and template_score >= sift_score:
+        return template_type, expected_color, template_score
+
+    if sift_type:
+        return sift_type, expected_color, sift_score
+
     return None, None, 0
 
 def visualize_sift_match(square_img, templates_dir='cv/assets/pure-assets', expected_color=None):

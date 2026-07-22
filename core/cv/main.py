@@ -178,42 +178,43 @@ def detect_chess_position(image_path, visualize=False, save_all=False, save_matr
         "black_pieces": sum(1 for s in squares if s['piece_color'] == 'black'),
     }
     
-    # Visualização opcional
-    if visualize:
-        # Criar visualização do tabuleiro e peças
+    # Gerar visualização anotada se solicitado ou se for exibir
+    if visualize or save_all:
         board_visualization = visualize_board_and_pieces(frame, warped_board, squares, corners)
-        
-        # Redimensionar para exibição
-        scale_percent = 40  # Porcentagem do tamanho original
-        width = int(board_visualization.shape[1] * scale_percent / 100)
-        height = int(board_visualization.shape[0] * scale_percent / 100)
-        
-        board_viz_resized = cv2.resize(board_visualization, (width, height))
-        
-        # Salvar imagens se solicitado
+
         if save_all:
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
             base_filename = os.path.basename(image_path).split('.')[0]
-            output_path = f"{output_dir}/{base_filename}_board_detection.jpg"
+            output_path = os.path.join(output_dir, f"{base_filename}_board_detection.jpg")
             cv2.imwrite(output_path, board_visualization)
             result["detection_image_path"] = output_path
-        
-        # Detectar automaticamente Linux ou usar opção explícita
-        is_linux = platform.system() == 'Linux'
-        use_matplotlib = is_linux
-        
-        if use_matplotlib:
-            try:
-                show_with_matplotlib(board_viz_resized)
-            except ImportError:
-                # Fallback para OpenCV
-                use_matplotlib = False
-        
-        if not use_matplotlib:
-            # Exibir com OpenCV
-            cv2.imshow("Detecção de Tabuleiro e Peças", board_viz_resized)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
-    
+
+        if visualize:
+            # Redimensionar para exibição
+            scale_percent = 40  # Porcentagem do tamanho original
+            width = int(board_visualization.shape[1] * scale_percent / 100)
+            height = int(board_visualization.shape[0] * scale_percent / 100)
+
+            board_viz_resized = cv2.resize(board_visualization, (width, height))
+
+            # Detectar automaticamente Linux ou usar opção explícita
+            is_linux = platform.system() == 'Linux'
+            use_matplotlib = is_linux
+
+            if use_matplotlib:
+                try:
+                    show_with_matplotlib(board_viz_resized)
+                except ImportError:
+                    # Fallback para OpenCV
+                    use_matplotlib = False
+
+            if not use_matplotlib:
+                # Exibir com OpenCV
+                cv2.imshow("Detecção de Tabuleiro e Peças", board_viz_resized)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+
     return result
 
 def main():
