@@ -11,20 +11,37 @@ COMMON_CNC_PORTS = [
 ]
 
 
-def find_cnc_port(baudrate=115200, timeout=1, probe_command="G90"):
+# Palavras que identificam a resposta do firmware customizado do projeto
+CNC_FIRMWARE_SIGNATURES = [
+    "Servo",
+    "Eletroímã",
+    "Electromagnet",
+    "Arduino CNC",
+]
+
+
+def is_cnc_response(line):
+    """Verifica se uma linha de resposta vem do firmware CNC do projeto."""
+    upper = line.upper()
+    return any(sig.upper() in upper for sig in CNC_FIRMWARE_SIGNATURES)
+
+
+def find_cnc_port(baudrate=115200, timeout=1, probe_command="?"):
     """
     Tenta descobrir automaticamente a porta serial do Arduino/CNC.
 
     Estratégia:
     1. Lista todas as portas disponíveis via pyserial.
-    2. Tenta abrir cada uma e enviar um comando G-code seguro (G90).
-    3. Retorna a primeira porta que responder com 'ok' (resposta padrão do GRBL).
-    4. Se nenhuma funcionar, tenta as portas mais comuns explicitamente.
+    2. Abre cada porta e aguarda a mensagem de boot do Arduino.
+    3. Envia o comando '?' (status) e verifica se a resposta contém
+       palavras-chave do firmware customizado (ex: 'Servo', 'Eletroímã').
+    4. Se nenhuma porta detectada responder como CNC, tenta as portas
+       mais comuns explicitamente.
 
     Parâmetros:
         baudrate (int): Taxa de transmissão
         timeout (float): Timeout de leitura em segundos
-        probe_command (str): Comando G-code usado para testar a conexão
+        probe_command (str): Comando usado para testar a conexão
 
     Retorna:
         str: Nome da porta encontrada, ou None se nenhuma funcionar
@@ -48,26 +65,39 @@ def find_cnc_port(baudrate=115200, timeout=1, probe_command="G90"):
     for port in candidates:
         try:
             with serial.Serial(port, baudrate, timeout=timeout) as s:
-                time.sleep(2)  # Aguarda inicialização do Arduino/GRBL
+                time.sleep(2)  # Aguarda inicialização do Arduino
 
-                # Limpa buffers
+                # Lê qualquer mensagem de boot que tenha chegado
+                boot_lines = []
+                deadline = time.time() + timeout
+                while time.time() < deadline:
+                    if s.in_waiting > 0:
+                        line = s.readline().decode("utf-8", errors="ignore").strip()
+                        if line:
+                            boot_lines.append(line)
+                            print(f"   {port} -> {line}")
+                            if is_cnc_response(line):
+                                print(f"✅ CNC encontrada na porta {port}")
+                                return port
+                    else:
+                        time.sleep(0.05)
+
+                # Se não identificou pelo boot, envia comando de probe
                 s.reset_input_buffer()
                 s.reset_output_buffer()
-
-                # Envia comando de teste
                 s.write(f"{probe_command}\n".encode())
 
-                # Aguarda resposta por até 'timeout' segundos
                 deadline = time.time() + timeout
                 while time.time() < deadline:
                     if s.in_waiting > 0:
                         line = s.readline().decode("utf-8", errors="ignore").strip()
                         if line:
                             print(f"   {port} -> {line}")
-                            if line.lower() == "ok":
+                            if is_cnc_response(line):
                                 print(f"✅ CNC encontrada na porta {port}")
                                 return port
-                    time.sleep(0.05)
+                    else:
+                        time.sleep(0.05)
 
         except serial.SerialException as e:
             print(f"   {port} indisponível ({e})")
@@ -75,7 +105,7 @@ def find_cnc_port(baudrate=115200, timeout=1, probe_command="G90"):
             print(f"   {port} erro inesperado: {e}")
 
     print("❌ Não foi possível detectar a CNC automaticamente.")
-    print("   Verifique se o Arduino está conectado e reconhecido pelo sistema.")
+    print("   Verifique se o Arduino do CNC está conectado e reconhecido pelo sistema.")
     return None
 
 
