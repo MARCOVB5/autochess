@@ -17,7 +17,6 @@ if not cap.isOpened():
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
 
-# Flush buffer para pegar frame recente
 for _ in range(5):
     cap.read()
 

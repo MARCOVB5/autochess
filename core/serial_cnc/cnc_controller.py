@@ -3,15 +3,13 @@ import serial.tools.list_ports
 import time
 import sys
 
-# Portas comuns a tentar caso a listagem automática não funcione
 COMMON_CNC_PORTS = [
     "COM3", "COM4", "COM5", "COM6",
     "/dev/ttyUSB0", "/dev/ttyUSB1",
     "/dev/ttyACM0", "/dev/ttyACM1",
 ]
 
-
-# Palavras que identificam a resposta do firmware customizado do projeto
+# Mensagens que distinguem o firmware do projeto de outras portas seriais.
 CNC_FIRMWARE_SIGNATURES = [
     "Servo",
     "Eletroímã",
@@ -46,18 +44,16 @@ def find_cnc_port(baudrate=115200, timeout=1, probe_command="?"):
     Retorna:
         str: Nome da porta encontrada, ou None se nenhuma funcionar
     """
-    print("🔍 Procurando porta do Arduino/CNC automaticamente...")
+    print("Procurando porta do Arduino/CNC automaticamente...")
 
     candidates = []
 
-    # 1. Portas detectadas pelo sistema
     try:
         detected = [p.device for p in serial.tools.list_ports.comports()]
         candidates.extend(detected)
     except Exception as e:
-        print(f"⚠️ Não foi possível listar portas detectadas: {e}")
+        print(f"Não foi possível listar portas detectadas: {e}")
 
-    # 2. Portas comuns como fallback
     for fallback in COMMON_CNC_PORTS:
         if fallback not in candidates:
             candidates.append(fallback)
@@ -67,7 +63,6 @@ def find_cnc_port(baudrate=115200, timeout=1, probe_command="?"):
             with serial.Serial(port, baudrate, timeout=timeout) as s:
                 time.sleep(2)  # Aguarda inicialização do Arduino
 
-                # Lê qualquer mensagem de boot que tenha chegado
                 boot_lines = []
                 deadline = time.time() + timeout
                 while time.time() < deadline:
@@ -77,12 +72,11 @@ def find_cnc_port(baudrate=115200, timeout=1, probe_command="?"):
                             boot_lines.append(line)
                             print(f"   {port} -> {line}")
                             if is_cnc_response(line):
-                                print(f"✅ CNC encontrada na porta {port}")
+                                print(f"CNC encontrada na porta {port}")
                                 return port
                     else:
                         time.sleep(0.05)
 
-                # Se não identificou pelo boot, envia comando de probe
                 s.reset_input_buffer()
                 s.reset_output_buffer()
                 s.write(f"{probe_command}\n".encode())
@@ -94,7 +88,7 @@ def find_cnc_port(baudrate=115200, timeout=1, probe_command="?"):
                         if line:
                             print(f"   {port} -> {line}")
                             if is_cnc_response(line):
-                                print(f"✅ CNC encontrada na porta {port}")
+                                print(f"CNC encontrada na porta {port}")
                                 return port
                     else:
                         time.sleep(0.05)
@@ -104,7 +98,7 @@ def find_cnc_port(baudrate=115200, timeout=1, probe_command="?"):
         except Exception as e:
             print(f"   {port} erro inesperado: {e}")
 
-    print("❌ Não foi possível detectar a CNC automaticamente.")
+    print("Não foi possível detectar a CNC automaticamente.")
     print("   Verifique se o Arduino do CNC está conectado e reconhecido pelo sistema.")
     return None
 
@@ -122,7 +116,7 @@ class CNCArduinoController:
         if port is None:
             port = find_cnc_port(baudrate=baudrate, timeout=timeout)
             if port is None:
-                print("❌ Falha ao detectar a porta do Arduino/CNC.")
+                print("Falha ao detectar a porta do Arduino/CNC.")
                 print("   Dica: conecte o Arduino e tente novamente,")
                 print("   ou passe a porta manualmente, ex.: CNCArduinoController('COM3')")
                 sys.exit(1)
@@ -150,12 +144,12 @@ class CNCArduinoController:
             15: (-0.532, -25.076),  # casa 15 → pos 3
             16: (15.260, -29.476),  # casa 16 → pos 4
             
-            # Posições de morte na esquerda
+            # Cemitério esquerdo.
             17: (-58.624, -13.596), # posição adicional 17
             18: (-46.624, -11.096), # posição adicional 18
             19: (-35.624, -8.096),  # posição adicional 19
 
-            # Posições de morte na direita
+            # Cemitério direito.
             20: (28.260, -36.976),  # posição adicional 20
             21: (39.260, -33.976),  # posição adicional 21
             22: (52.260, -30.976)   # posição adicional 22
@@ -177,42 +171,35 @@ class CNCArduinoController:
     
     def initialize_cnc(self):
         """Inicializa a CNC enviando comandos G-code iniciais"""
-        # Enviar comandos iniciais
         init_commands = [
             "G21",       # Definir unidades para milímetros
             "G90",       # Modo de posicionamento absoluto
             "G92 X0 Y0"  # Definir posição atual como origem
         ]
         
-        print("🔧 Enviando comandos iniciais...")
+        print("Enviando comandos iniciais...")
         for cmd in init_commands:
             self.send_command_and_wait(cmd)
         
-        # Sequência de inicialização do servo e eletroimã
-        print("🔄 Inicializando servo e eletroimã...")
+        print("Inicializando servo e eletroimã...")
         
-        # 1. Ligar eletroimã
-        print("🧲 Ligando eletroimã...")
+        print("Ligando eletroimã...")
         self.send_command_and_wait("M3")
         
-        # 2. Levantar servo
-        print("⬆️ Levantando servo...")
+        print("Levantando servo...")
         self.send_command_and_wait("S0")
         
-        # 3. Desligar eletroimã
-        print("🔌 Desligando eletroimã...")
+        print("Desligando eletroimã...")
         self.send_command_and_wait("M4")
         
-        print("✅ CNC inicializada com sucesso!")
+        print("CNC inicializada com sucesso!")
     
     def send_command(self, command):
         """Envia um comando G-code para o Arduino (sem aguardar resposta)"""
         try:
-            # Adicionar nova linha ao final do comando
             full_command = f"{command}\n"
             self.serial.write(full_command.encode())
             
-            # Aguardar e ler a resposta (opcional, dependendo do firmware)
             time.sleep(0.1)
             response = self.serial.readline().decode().strip()
             
@@ -236,15 +223,12 @@ class CNCArduinoController:
             bool: True se recebeu "ok", False se houve erro ou timeout
         """
         try:
-            # Limpar buffer de entrada
             self.serial.flushInput()
             
-            # Enviar comando
             full_command = f"{command}\n"
             self.serial.write(full_command.encode())
             print(f"Enviado: {command}")
             
-            # Aguardar resposta com timeout
             start_time = time.time()
             response_buffer = ""
             
@@ -253,7 +237,6 @@ class CNCArduinoController:
                     char = self.serial.read(1).decode('utf-8', errors='ignore')
                     response_buffer += char
                     
-                    # Verificar se recebemos uma linha completa
                     if '\n' in response_buffer or '\r' in response_buffer:
                         lines = response_buffer.replace('\r', '\n').split('\n')
                         
@@ -262,25 +245,22 @@ class CNCArduinoController:
                             if line:
                                 print(f"GRBL: {line}")
                                 
-                                # Verificar se é uma confirmação de sucesso
                                 if line.lower() == "ok":
                                     return True
                                 
-                                # Verificar se é um erro
                                 if line.lower().startswith("error"):
-                                    print(f"❌ Erro GRBL: {line}")
+                                    print(f"Erro GRBL: {line}")
                                     return False
                         
-                        # Resetar buffer mantendo apenas a última parte incompleta
                         response_buffer = lines[-1] if not lines[-1].strip() else ""
                 
                 time.sleep(0.01)  # Pequeno delay para não sobrecarregar a CPU
             
-            print(f"⚠️ Timeout aguardando resposta para comando: {command}")
+            print(f"Timeout aguardando resposta para comando: {command}")
             return False
             
         except Exception as e:
-            print(f"❌ Erro ao enviar comando e aguardar: {e}")
+            print(f"Erro ao enviar comando e aguardar: {e}")
             return False
     
     def move_to_position(self, position_number, wait_for_completion=True):
@@ -295,23 +275,22 @@ class CNCArduinoController:
             bool: True se o movimento foi bem-sucedido
         """
         if position_number not in self.positions:
-            print(f"❌ Posição {position_number} não existe!")
+            print(f"Posição {position_number} não existe!")
             return False
         
         x, y = self.positions[position_number]
         command = f"G1 X{x:.3f} Y{y:.3f} F{self.feed_rate}"
         
-        print(f"🎯 Movendo para POS{position_number}: X{x} Y{y}")
+        print(f"Movendo para POS{position_number}: X{x} Y{y}")
         
         if wait_for_completion:
             success = self.send_command_and_wait(command)
             if success:
-                print(f"✅ Movimento para POS{position_number} concluído!")
+                print(f"Movimento para POS{position_number} concluído!")
             else:
-                print(f"❌ Falha no movimento para POS{position_number}")
+                print(f"Falha no movimento para POS{position_number}")
             return success
         else:
-            # Modo compatível com código antigo
             self.send_command(command)
             time.sleep(1)
             return True
@@ -325,47 +304,47 @@ class CNCArduinoController:
     
     def servo_up(self):
         """Erguer o servo motor (S25)"""
-        print("⬆️ Levantando servo motor...")
+        print("Levantando servo motor...")
         success = self.send_command_and_wait("S25")
         if success:
-            print("✅ Servo levantado!")
+            print("Servo levantado!")
         else:
-            print("❌ Falha ao levantar servo")
+            print("Falha ao levantar servo")
         return success
         
     def servo_down(self):
         """Abaixar o servo motor (S0)"""
-        print("⬇️ Abaixando servo motor...")
+        print("Abaixando servo motor...")
         success = self.send_command_and_wait("S0")
         if success:
-            print("✅ Servo abaixado!")
+            print("Servo abaixado!")
         else:
-            print("❌ Falha ao abaixar servo")
+            print("Falha ao abaixar servo")
         return success
         
     def electromagnet_on(self):
         """Ligar eletroimã (M3)"""
-        print("🧲 Ligando eletroimã...")
+        print("Ligando eletroimã...")
         success = self.send_command_and_wait("M3")
         if success:
-            print("✅ Eletroimã ligado!")
+            print("Eletroimã ligado!")
         else:
-            print("❌ Falha ao ligar eletroimã")
+            print("Falha ao ligar eletroimã")
         return success
         
     def electromagnet_off(self):
         """Desligar eletroimã (M4)"""
-        print("🔌 Desligando eletroimã...")
+        print("Desligando eletroimã...")
         success = self.send_command_and_wait("M4")
         if success:
-            print("✅ Eletroimã desligado!")
+            print("Eletroimã desligado!")
         else:
-            print("❌ Falha ao desligar eletroimã")
+            print("Falha ao desligar eletroimã")
         return success
     
     def pick_piece(self):
         """Sequência completa para pegar uma peça"""
-        print("🤏 Iniciando sequência de captura...")
+        print("Iniciando sequência de captura...")
         
         if not self.servo_down():
             return False
@@ -378,12 +357,12 @@ class CNCArduinoController:
         if not self.servo_up():
             return False
             
-        print("✅ Peça capturada com sucesso!")
+        print("Peça capturada com sucesso!")
         return True
         
     def drop_piece(self):
         """Sequência completa para largar uma peça"""
-        print("📤 Iniciando sequência de liberação...")
+        print("Iniciando sequência de liberação...")
         
         if not self.servo_down():
             return False
@@ -396,14 +375,14 @@ class CNCArduinoController:
         if not self.servo_up():
             return False
             
-        print("✅ Peça liberada com sucesso!")
+        print("Peça liberada com sucesso!")
         return True
     
     def close(self):
         """Fecha a conexão serial"""
         if hasattr(self, 'serial') and self.serial.is_open:
             self.serial.close()
-            print("🔌 Conexão fechada")
+            print("Conexão fechada")
 
     def control_moves(self, move, captured):
         """
@@ -414,19 +393,19 @@ class CNCArduinoController:
             self.servo_up()
 
             if captured == True:
-                print("♟️ Captura detectada - removendo peça do destino")
+                print("Captura detectada - removendo peça do destino")
                 
                 if not self.move_to_position(pos_destino):
-                    print("❌ Falha ao mover para posição de captura")
+                    print("Falha ao mover para posição de captura")
                     return False
                 
                 if not self.pick_piece():
-                    print("❌ Falha ao capturar peça")
+                    print("Falha ao capturar peça")
                     return False
 
-                # Move para a posição de morte
                 death_pos = None
-                if move[1][1] <= 1:  # Lado esquerdo do tabuleiro
+                # Capturas das colunas A/B vão para a esquerda; C/D, direita.
+                if move[1][1] <= 1:
                     death_pos = self.death_position_left
                     self.death_position_left += 1
                     if self.death_position_left > 19:
@@ -437,48 +416,46 @@ class CNCArduinoController:
                     if self.death_position_right > 22:
                         self.death_position_right = 20
 
-                print(f"☠️ Movendo peça capturada para posição de morte {death_pos}")
+                print(f"Movendo peça capturada para posição de morte {death_pos}")
                 if not self.move_to_position(death_pos):
-                    print("❌ Falha ao mover para posição de morte")
+                    print("Falha ao mover para posição de morte")
                     return False
                 
                 if not self.drop_piece():
-                    print("❌ Falha ao soltar peça capturada")
+                    print("Falha ao soltar peça capturada")
                     return False
 
-            # Movimento principal da peça
-            print(f"♞ Executando movimento: POS{pos_origem} → POS{pos_destino}")
+            print(f"Executando movimento: POS{pos_origem} → POS{pos_destino}")
             
             if not self.move_to_position(pos_origem):
-                print("❌ Falha ao mover para posição de origem")
+                print("Falha ao mover para posição de origem")
                 return False
             
             if not self.pick_piece():
-                print("❌ Falha ao pegar peça de origem")
+                print("Falha ao pegar peça de origem")
                 return False
 
             if not self.move_to_position(pos_destino):
-                print("❌ Falha ao mover para posição de destino")
+                print("Falha ao mover para posição de destino")
                 return False
             
             if not self.drop_piece():
-                print("❌ Falha ao soltar peça no destino")
+                print("Falha ao soltar peça no destino")
                 return False
 
-            # Retornar à origem
-            print("🏠 Retornando à posição inicial")
+            print("Retornando à posição inicial")
             if not self.move_to_position(0):
-                print("❌ Falha ao retornar à origem")
+                print("Falha ao retornar à origem")
                 return False
             
             self.servo_down()         # Deixar servo na posição baixa
             self.electromagnet_off()  # Garantir que eletroimã está desligado
             
-            print("✅ Movimento executado com sucesso!")
+            print("Movimento executado com sucesso!")
             return True
                         
         except Exception as e:
-            print(f"❌ Erro durante execução do movimento: {e}")
+            print(f"Erro durante execução do movimento: {e}")
             return False
 
 def calculate_position(move):
@@ -489,7 +466,7 @@ def calculate_position(move):
         pos_destino = 4 * linha_destino + coluna_destino + 1
     
     except:
-        print("❌ Erro ao processar o movimento!")
+        print("Erro ao processar o movimento!")
         return None, None
         
     return pos_origem, pos_destino
@@ -500,38 +477,37 @@ def send_move(controller, pos):
 
 def main():
     """Interface principal do terminal para controlar a CNC"""
-    print("🤖 === CONTROLADOR CNC ARDUINO ===")
+    print("=== CONTROLADOR CNC ARDUINO ===")
     print("Conectando ao Arduino...")
 
     try:
-        # Inicializar o controlador (auto-detecta a porta)
         controller = CNCArduinoController()
         
-        print("✅ CNC conectada e inicializada!")
+        print("CNC conectada e inicializada!")
         
         while True:
             print("\n" + "="*55)
-            print("🤖 MENU DE CONTROLE CNC COMPLETO")
+            print("MENU DE CONTROLE CNC COMPLETO")
             print("="*55)
-            print("📍 MOVIMENTAÇÃO:")
-            print("  1. 📋 Mostrar todas as posições")
-            print("  2. 🎯 Ir para uma posição")
-            print("  3. 🏠 Ir para origem (POS0)")
+            print("MOVIMENTAÇÃO:")
+            print("  1. Mostrar todas as posições")
+            print("  2. Ir para uma posição")
+            print("  3. Ir para origem (POS0)")
             print("")
-            print("🔧 CONTROLE SERVO/ELETROIMÃ:")
-            print("  4. ⬆️ Erguer servo (S25)")
-            print("  5. ⬇️ Abaixar servo (S0)")
-            print("  6. 🧲 Ligar eletroimã (M3)")
-            print("  7. 🔌 Desligar eletroimã (M4)")
+            print("CONTROLE SERVO/ELETROIMÃ:")
+            print("  4. Erguer servo (S25)")
+            print("  5. Abaixar servo (S0)")
+            print("  6. Ligar eletroimã (M3)")
+            print("  7. Desligar eletroimã (M4)")
             print("")
-            print("🎮 SEQUÊNCIAS AUTOMÁTICAS:")
-            print("  8. 🤏 Pegar peça (completo)")
-            print("  9. 📤 Largar peça (completo)")
+            print("SEQUÊNCIAS AUTOMÁTICAS:")
+            print("  8. Pegar peça (completo)")
+            print("  9. Largar peça (completo)")
             print("")
-            print("  0. ❌ Sair")
+            print("  0. Sair")
             print("="*55)
             
-            opcao = input("👉 Escolha uma opção (0-9): ").strip()
+            opcao = input("Escolha uma opção (0-9): ").strip()
             
             if opcao == "1":
                 controller.show_positions()
@@ -539,32 +515,32 @@ def main():
             elif opcao == "2":
                 controller.show_positions()
                 try:
-                    pos = input("\n🎯 Digite a posição desejada (0-22): ").strip()
+                    pos = input("\nDigite a posição desejada (0-22): ").strip()
                     pos_num = int(pos)
                     
                     if pos_num in controller.positions:
-                        print(f"\n🚀 Movendo para posição {pos_num}...")
+                        print(f"\nMovendo para posição {pos_num}...")
                         success = controller.move_to_position(pos_num)
                         if success:
                             x, y = controller.positions[pos_num]
-                            print(f"✅ Movimento concluído! Posição atual: X{x} Y{y}")
+                            print(f"Movimento concluído! Posição atual: X{x} Y{y}")
                         else:
-                            print("❌ Falha no movimento!")
+                            print("Falha no movimento!")
                     else:
-                        print(f"❌ Posição {pos_num} não existe! Use posições de 0 a 22.")
+                        print(f"Posição {pos_num} não existe! Use posições de 0 a 22.")
                         
                 except ValueError:
-                    print("❌ Por favor, digite um número válido!")
+                    print("Por favor, digite um número válido!")
                 except KeyboardInterrupt:
-                    print("\n⚠️ Operação cancelada pelo usuário")
+                    print("\nOperação cancelada pelo usuário")
                     
             elif opcao == "3":
-                print("\n🏠 Retornando à origem...")
+                print("\nRetornando à origem...")
                 success = controller.move_to_position(0)
                 if success:
-                    print("✅ CNC na posição origem (0, 0)")
+                    print("CNC na posição origem (0, 0)")
                 else:
-                    print("❌ Falha ao retornar à origem!")
+                    print("Falha ao retornar à origem!")
                     
             elif opcao == "4":
                 controller.servo_up()
@@ -585,21 +561,21 @@ def main():
                 controller.drop_piece()
                     
             elif opcao == "0":
-                print("\n👋 Encerrando programa...")
+                print("\nEncerrando programa...")
                 break
                 
             else:
-                print("❌ Opção inválida! Por favor, escolha entre 0-9.")
+                print("Opção inválida! Por favor, escolha entre 0-9.")
                 
     except KeyboardInterrupt:
-        print("\n\n⚠️ Programa interrompido pelo usuário (Ctrl+C)")
+        print("\n\nPrograma interrompido pelo usuário (Ctrl+C)")
     except Exception as e:
-        print(f"❌ Erro: {e}")
+        print(f"Erro: {e}")
     finally:
         if 'controller' in locals():
             controller.close()
-            print("🔌 Conexão com Arduino encerrada")
-        print("👋 Programa finalizado!")
+            print("Conexão com Arduino encerrada")
+        print("Programa finalizado!")
 
 if __name__ == "__main__":
     main()

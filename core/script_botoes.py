@@ -2,7 +2,6 @@ import serial
 import time
 import threading
 
-# Tenta importar pynput (melhor para Linux)
 try:
     from pynput.keyboard import Key, Controller
     USE_PYNPUT = True
@@ -61,23 +60,20 @@ class ArduinoController:
     
     def simulate_keypress(self, key_code):
         """Simula o pressionamento de tecla"""
-        # Aceita qualquer tecla numérica que o Arduino enviar
         valid_keys = ['0', '1', '2']
         
         if key_code in valid_keys:
             if USE_PYNPUT:
-                # Usando pynput (recomendado para Linux)
                 key_to_press = key_code
                 keyboard_controller.press(key_to_press)
                 time.sleep(0.01)  # Pequeno delay
                 keyboard_controller.release(key_to_press)
-                print(f"✅ Tecla '{key_to_press}' pressionada (pynput)")
+                print(f"Tecla '{key_to_press}' pressionada (pynput)")
             else:
-                # Usando keyboard (pode precisar de root no Linux)
                 keyboard.press_and_release(key_code)
-                print(f"✅ Tecla '{key_code}' pressionada (keyboard)")
+                print(f"Tecla '{key_code}' pressionada (keyboard)")
         else:
-            print(f"⚠️ Tecla '{key_code}' não reconhecida. Teclas válidas: {valid_keys}")
+            print(f"Tecla '{key_code}' não reconhecida. Teclas válidas: {valid_keys}")
     
     def run(self):
         """Loop principal de monitoramento"""
@@ -93,18 +89,17 @@ class ArduinoController:
                 if data:
                     print(f"Recebido do Arduino: {data}")
                     
-                    # Processa os comandos recebidos
                     if data.startswith("BUTTON"):
                         try:
                             button_num = data.split("_")[1]
-                            print(f"🔘 Recebido comando: {data}")
-                            print(f"🎯 Simulando tecla '{button_num}'...")
+                            print(f"Recebido comando: {data}")
+                            print(f"Simulando tecla '{button_num}'...")
                             self.simulate_keypress(button_num)
-                            print("📝 Comando processado!")
+                            print("Comando processado!")
                         except IndexError:
-                            print(f"⚠️ Formato inválido: {data}")
+                            print(f"Formato inválido: {data}")
                     else:
-                        print(f"📟 Arduino: {data}")
+                        print(f"Arduino: {data}")
                 
                 time.sleep(0.01)  # Pequeno delay para não sobrecarregar o CPU
                 
@@ -115,9 +110,6 @@ class ArduinoController:
             self.disconnect()
 
 def main():
-    # Configuração da porta serial (ajuste conforme necessário)
-    # Windows: geralmente COM3, COM4, etc.
-    # Linux/Mac: geralmente /dev/ttyUSB0, /dev/ttyACM0, etc.
     
     print("Portas disponíveis:")
     try:
