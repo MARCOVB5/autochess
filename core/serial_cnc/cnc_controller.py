@@ -2,29 +2,26 @@ import serial # pyserial
 import serial.tools.list_ports
 import time
 import sys
+from pathlib import Path
 
-COMMON_CNC_PORTS = [
-    "COM3", "COM4", "COM5", "COM6",
-    "/dev/ttyUSB0", "/dev/ttyUSB1",
-    "/dev/ttyACM0", "/dev/ttyACM1",
-]
-
-# Mensagens que distinguem o firmware do projeto de outras portas seriais.
-CNC_FIRMWARE_SIGNATURES = [
-    "Servo",
-    "Eletroímã",
-    "Electromagnet",
-    "Arduino CNC",
-]
+try:
+    import hardware_config as hardware
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    import hardware_config as hardware
 
 
 def is_cnc_response(line):
     """Verifica se uma linha de resposta vem do firmware CNC do projeto."""
     upper = line.upper()
-    return any(sig.upper() in upper for sig in CNC_FIRMWARE_SIGNATURES)
+    return any(sig.upper() in upper for sig in hardware.FIRMWARE_SIGNATURES)
 
 
-def find_cnc_port(baudrate=115200, timeout=1, probe_command="?"):
+def find_cnc_port(
+    baudrate=hardware.SERIAL_BAUDRATE,
+    timeout=hardware.SERIAL_TIMEOUT,
+    probe_command=hardware.SERIAL_PROBE_COMMAND,
+):
     """
     Tenta descobrir automaticamente a porta serial do Arduino/CNC.
 
@@ -54,14 +51,14 @@ def find_cnc_port(baudrate=115200, timeout=1, probe_command="?"):
     except Exception as e:
         print(f"Não foi possível listar portas detectadas: {e}")
 
-    for fallback in COMMON_CNC_PORTS:
+    for fallback in hardware.SERIAL_FALLBACK_PORTS:
         if fallback not in candidates:
             candidates.append(fallback)
 
     for port in candidates:
         try:
             with serial.Serial(port, baudrate, timeout=timeout) as s:
-                time.sleep(2)  # Aguarda inicialização do Arduino
+                time.sleep(hardware.SERIAL_STARTUP_DELAY)
 
                 boot_lines = []
                 deadline = time.time() + timeout
@@ -75,7 +72,7 @@ def find_cnc_port(baudrate=115200, timeout=1, probe_command="?"):
                                 print(f"CNC encontrada na porta {port}")
                                 return port
                     else:
-                        time.sleep(0.05)
+                        time.sleep(hardware.SERIAL_PROBE_POLL_INTERVAL)
 
                 s.reset_input_buffer()
                 s.reset_output_buffer()
@@ -91,7 +88,7 @@ def find_cnc_port(baudrate=115200, timeout=1, probe_command="?"):
                                 print(f"CNC encontrada na porta {port}")
                                 return port
                     else:
-                        time.sleep(0.05)
+                        time.sleep(hardware.SERIAL_PROBE_POLL_INTERVAL)
 
         except serial.SerialException as e:
             print(f"   {port} indisponível ({e})")
@@ -104,7 +101,12 @@ def find_cnc_port(baudrate=115200, timeout=1, probe_command="?"):
 
 
 class CNCArduinoController:
-    def __init__(self, port=None, baudrate=115200, timeout=1):
+    def __init__(
+        self,
+        port=hardware.SERIAL_PORT,
+        baudrate=hardware.SERIAL_BAUDRATE,
+        timeout=hardware.SERIAL_TIMEOUT,
+    ):
         """
         Inicializa a conexão com o Arduino (CNC Shield)
 
@@ -121,49 +123,17 @@ class CNCArduinoController:
                 print("   ou passe a porta manualmente, ex.: CNCArduinoController('COM3')")
                 sys.exit(1)
 
-        self.positions = {
-            0: (0.000, 0.000),  # Origem (não muda)
-            
-            1:  (16.564, -4.908),   # casa 1 → pos 13
-            2:  (31.964, -8.988),   # casa 2 → pos 14
-            3:  (47.500, -13.256),  # casa 3 → pos 15
-            4:  (63.824, -17.028),  # casa 4 → pos 16
-
-            5:  (1.172, -8.844),    # casa 5 → pos 9
-            6:  (16.332, -13.288),  # casa 6 → pos 10
-            7:  (30.960, -17.288),  # casa 7 → pos 11
-            8:  (47.328, -21.020),  # casa 8 → pos 12
-
-            9:  (-15.844, -13.008), # casa 9 → pos 5
-            10: (-0.752, -17.700),  # casa 10 → pos 6
-            11: (15.984, -20.952),  # casa 11 → pos 7
-            12: (31.528, -25.340),  # casa 12 → pos 8
-
-            13: (-32.624, -16.596), # casa 13 → pos 1
-            14: (-15.764, -21.048), # casa 14 → pos 2
-            15: (-0.532, -25.076),  # casa 15 → pos 3
-            16: (15.260, -29.476),  # casa 16 → pos 4
-            
-            # Cemitério esquerdo.
-            17: (-58.624, -13.596), # posição adicional 17
-            18: (-46.624, -11.096), # posição adicional 18
-            19: (-35.624, -8.096),  # posição adicional 19
-
-            # Cemitério direito.
-            20: (28.260, -36.976),  # posição adicional 20
-            21: (39.260, -33.976),  # posição adicional 21
-            22: (52.260, -30.976)   # posição adicional 22
-        }
+        self.positions = dict(hardware.CNC_POSITIONS)
         
-        self.feed_rate = 1500  # Velocidade
+        self.feed_rate = hardware.CNC_FEED_RATE
 
-        self.death_position_left = 17
-        self.death_position_right = 20
+        self.death_position_left = hardware.GRAVEYARD_LEFT_START
+        self.death_position_right = hardware.GRAVEYARD_RIGHT_START
         
         try:
             self.serial = serial.Serial(port, baudrate, timeout=timeout)
             print(f"Conectado à porta {port}")
-            time.sleep(2)  # Aguarda a inicialização do Arduino
+            time.sleep(hardware.SERIAL_STARTUP_DELAY)
             self.initialize_cnc()
         except serial.SerialException as e:
             print(f"Erro ao conectar à porta {port}: {e}")
@@ -171,11 +141,7 @@ class CNCArduinoController:
     
     def initialize_cnc(self):
         """Inicializa a CNC enviando comandos G-code iniciais"""
-        init_commands = [
-            "G21",       # Definir unidades para milímetros
-            "G90",       # Modo de posicionamento absoluto
-            "G92 X0 Y0"  # Definir posição atual como origem
-        ]
+        init_commands = hardware.CNC_INITIALIZATION_COMMANDS
         
         print("Enviando comandos iniciais...")
         for cmd in init_commands:
@@ -184,13 +150,13 @@ class CNCArduinoController:
         print("Inicializando servo e eletroimã...")
         
         print("Ligando eletroimã...")
-        self.send_command_and_wait("M3")
+        self.send_command_and_wait(hardware.ELECTROMAGNET_ON_COMMAND)
         
-        print("Levantando servo...")
-        self.send_command_and_wait("S0")
+        print("Abaixando servo...")
+        self.send_command_and_wait(hardware.SERVO_DOWN_COMMAND)
         
         print("Desligando eletroimã...")
-        self.send_command_and_wait("M4")
+        self.send_command_and_wait(hardware.ELECTROMAGNET_OFF_COMMAND)
         
         print("CNC inicializada com sucesso!")
     
@@ -200,7 +166,7 @@ class CNCArduinoController:
             full_command = f"{command}\n"
             self.serial.write(full_command.encode())
             
-            time.sleep(0.1)
+            time.sleep(hardware.SERIAL_RESPONSE_DELAY)
             response = self.serial.readline().decode().strip()
             
             if response:
@@ -211,7 +177,11 @@ class CNCArduinoController:
             print(f"Erro ao enviar comando: {e}")
             return None
     
-    def send_command_and_wait(self, command, timeout=30):
+    def send_command_and_wait(
+        self,
+        command,
+        timeout=hardware.SERIAL_COMMAND_TIMEOUT,
+    ):
         """
         Envia um comando G-code e aguarda a confirmação "ok" do GRBL
         
@@ -254,7 +224,7 @@ class CNCArduinoController:
                         
                         response_buffer = lines[-1] if not lines[-1].strip() else ""
                 
-                time.sleep(0.01)  # Pequeno delay para não sobrecarregar a CPU
+                time.sleep(hardware.SERIAL_POLL_INTERVAL)
             
             print(f"Timeout aguardando resposta para comando: {command}")
             return False
@@ -292,7 +262,7 @@ class CNCArduinoController:
             return success
         else:
             self.send_command(command)
-            time.sleep(1)
+            time.sleep(hardware.CNC_NONBLOCKING_MOVE_DELAY)
             return True
     
     def show_positions(self):
@@ -303,9 +273,9 @@ class CNCArduinoController:
         print("="*32)
     
     def servo_up(self):
-        """Erguer o servo motor (S25)"""
+        """Ergue o servo motor."""
         print("Levantando servo motor...")
-        success = self.send_command_and_wait("S25")
+        success = self.send_command_and_wait(hardware.SERVO_UP_COMMAND)
         if success:
             print("Servo levantado!")
         else:
@@ -313,9 +283,9 @@ class CNCArduinoController:
         return success
         
     def servo_down(self):
-        """Abaixar o servo motor (S0)"""
+        """Abaixa o servo motor."""
         print("Abaixando servo motor...")
-        success = self.send_command_and_wait("S0")
+        success = self.send_command_and_wait(hardware.SERVO_DOWN_COMMAND)
         if success:
             print("Servo abaixado!")
         else:
@@ -323,9 +293,9 @@ class CNCArduinoController:
         return success
         
     def electromagnet_on(self):
-        """Ligar eletroimã (M3)"""
+        """Liga o eletroímã."""
         print("Ligando eletroimã...")
-        success = self.send_command_and_wait("M3")
+        success = self.send_command_and_wait(hardware.ELECTROMAGNET_ON_COMMAND)
         if success:
             print("Eletroimã ligado!")
         else:
@@ -333,9 +303,9 @@ class CNCArduinoController:
         return success
         
     def electromagnet_off(self):
-        """Desligar eletroimã (M4)"""
+        """Desliga o eletroímã."""
         print("Desligando eletroimã...")
-        success = self.send_command_and_wait("M4")
+        success = self.send_command_and_wait(hardware.ELECTROMAGNET_OFF_COMMAND)
         if success:
             print("Eletroimã desligado!")
         else:
@@ -352,7 +322,7 @@ class CNCArduinoController:
         if not self.electromagnet_on():
             return False
         
-        time.sleep(1)  # Delay para fixar a peça
+        time.sleep(hardware.PIECE_HANDLING_DELAY)
         
         if not self.servo_up():
             return False
@@ -370,7 +340,7 @@ class CNCArduinoController:
         if not self.electromagnet_off():
             return False
         
-        time.sleep(1)  # Delay para soltar a peça
+        time.sleep(hardware.PIECE_HANDLING_DELAY)
         
         if not self.servo_up():
             return False
@@ -408,13 +378,13 @@ class CNCArduinoController:
                 if move[1][1] <= 1:
                     death_pos = self.death_position_left
                     self.death_position_left += 1
-                    if self.death_position_left > 19:
-                        self.death_position_left = 17
+                    if self.death_position_left > hardware.GRAVEYARD_LEFT_END:
+                        self.death_position_left = hardware.GRAVEYARD_LEFT_START
                 else:  # Lado direito do tabuleiro
                     death_pos = self.death_position_right
                     self.death_position_right += 1
-                    if self.death_position_right > 22:
-                        self.death_position_right = 20
+                    if self.death_position_right > hardware.GRAVEYARD_RIGHT_END:
+                        self.death_position_right = hardware.GRAVEYARD_RIGHT_START
 
                 print(f"Movendo peça capturada para posição de morte {death_pos}")
                 if not self.move_to_position(death_pos):
@@ -444,7 +414,7 @@ class CNCArduinoController:
                 return False
 
             print("Retornando à posição inicial")
-            if not self.move_to_position(0):
+            if not self.move_to_position(hardware.CNC_HOME_POSITION):
                 print("Falha ao retornar à origem")
                 return False
             
@@ -492,13 +462,13 @@ def main():
             print("MOVIMENTAÇÃO:")
             print("  1. Mostrar todas as posições")
             print("  2. Ir para uma posição")
-            print("  3. Ir para origem (POS0)")
+            print(f"  3. Ir para origem (POS{hardware.CNC_HOME_POSITION})")
             print("")
             print("CONTROLE SERVO/ELETROIMÃ:")
-            print("  4. Erguer servo (S25)")
-            print("  5. Abaixar servo (S0)")
-            print("  6. Ligar eletroimã (M3)")
-            print("  7. Desligar eletroimã (M4)")
+            print(f"  4. Erguer servo ({hardware.SERVO_UP_COMMAND})")
+            print(f"  5. Abaixar servo ({hardware.SERVO_DOWN_COMMAND})")
+            print(f"  6. Ligar eletroimã ({hardware.ELECTROMAGNET_ON_COMMAND})")
+            print(f"  7. Desligar eletroimã ({hardware.ELECTROMAGNET_OFF_COMMAND})")
             print("")
             print("SEQUÊNCIAS AUTOMÁTICAS:")
             print("  8. Pegar peça (completo)")
@@ -536,7 +506,7 @@ def main():
                     
             elif opcao == "3":
                 print("\nRetornando à origem...")
-                success = controller.move_to_position(0)
+                success = controller.move_to_position(hardware.CNC_HOME_POSITION)
                 if success:
                     print("CNC na posição origem (0, 0)")
                 else:

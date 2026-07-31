@@ -37,6 +37,7 @@ são controladas pela pessoa e as pretas pela IA.
 .
 ├── core/                         # Aplicação integrada e módulos principais
 │   ├── main.py                   # Fluxo câmera → IA → CNC
+│   ├── hardware_config.py        # Câmera, serial, comandos e coordenadas físicas
 │   ├── minichess.py              # Regras do MiniChess 4×4
 │   ├── ai_player.py              # Agente de Q-learning
 │   ├── train_ai.py               # Treinamento da IA por simulação
@@ -91,9 +92,11 @@ cd core
 python main.py
 ```
 
-A aplicação procura automaticamente a CNC nas portas seriais disponíveis. A webcam
-externa está configurada como dispositivo `1` em `core/main.py`; altere
-`cv2.VideoCapture(1)` caso ela seja enumerada de outra forma no seu computador.
+A aplicação procura automaticamente a CNC nas portas seriais disponíveis. Índice e
+orientação da câmera, porta serial, comandos do firmware, velocidade e coordenadas
+da CNC ficam centralizados em `core/hardware_config.py`. Use `SERIAL_PORT = None`
+para autodetecção ou informe explicitamente uma porta como `/dev/ttyUSB0` ou
+`COM3`.
 
 Durante a partida, use:
 
@@ -103,8 +106,8 @@ Durante a partida, use:
 - `q` para encerrar.
 
 > **Atenção:** antes do primeiro movimento, confira a origem, os limites e o sentido
-> dos eixos da CNC. As coordenadas físicas das casas estão definidas em
-> `core/serial_cnc/cnc_controller.py`.
+> dos eixos da CNC. Revise `core/hardware_config.py` sempre que mudar a montagem,
+> a câmera ou o firmware.
 
 ## Executando os simuladores
 

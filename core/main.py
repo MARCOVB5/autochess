@@ -5,6 +5,7 @@ from minichess import MiniChess
 from ai_player import MiniChessAI
 import cv.main as cv
 from serial_cnc import cnc_controller
+import hardware_config as hardware
 import cv2
 import time
 
@@ -110,20 +111,18 @@ class OptimizedGameController:
     def _initialize_camera(self):
         """Inicializa a câmera com configurações otimizadas."""
         print("Inicializando câmera...")
-        # A webcam externa usada no robô normalmente aparece como dispositivo 1.
-        cap = cv2.VideoCapture(1)
+        cap = cv2.VideoCapture(hardware.CAMERA_INDEX)
         
         if not cap.isOpened():
             print("Erro: Webcam não encontrada.")
             return None
         
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-        cap.set(cv2.CAP_PROP_FPS, 30)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, hardware.CAMERA_WIDTH)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, hardware.CAMERA_HEIGHT)
+        cap.set(cv2.CAP_PROP_FPS, hardware.CAMERA_FPS)
         
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Reduz buffer para menor latência
-        # O valor 0.25 desativa a exposição automática nos backends que suportam.
-        cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, hardware.CAMERA_BUFFER_SIZE)
+        cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, hardware.CAMERA_AUTO_EXPOSURE)
         
         print("Câmera inicializada com sucesso!")
         return cap
@@ -138,7 +137,7 @@ class OptimizedGameController:
         
         print("Capturando foto do tabuleiro...")
         
-        for _ in range(3):  # Flush buffer antigo
+        for _ in range(hardware.CAMERA_BUFFER_FLUSH_FRAMES):
             ret, frame = self.camera.read()
             if not ret:
                 break
@@ -148,11 +147,11 @@ class OptimizedGameController:
             print("Erro ao capturar foto da webcam.")
             return None
         
-        # A câmera física está montada invertida sobre o tabuleiro.
-        rotated_frame = cv2.rotate(frame, cv2.ROTATE_180)
+        if hardware.CAMERA_ROTATE_180:
+            frame = cv2.rotate(frame, cv2.ROTATE_180)
         
-        image_path = './assets/current_board.jpg'
-        cv2.imwrite(image_path, rotated_frame)
+        image_path = hardware.CAMERA_CAPTURE_PATH
+        cv2.imwrite(image_path, frame)
         print("Foto do tabuleiro capturada e salva!")
 
         result = self.vision_system.detect_chess_position_optimized(image_path)
