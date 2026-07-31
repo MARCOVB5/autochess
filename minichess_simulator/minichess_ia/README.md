@@ -34,7 +34,11 @@ poucas partidas:
 - partidas 6–15: **Aprendendo** — alterna bastante entre exploração e boas
   jogadas;
 - depois da partida 15: **Experiente** — usa a heurística e a tabela Q, mas
-  mantém 8% de exploração para continuar cometendo erros ocasionais.
+  deixa de fazer jogadas puramente aleatórias.
+
+No nível experiente, a IA descarta jogadas que deixam seu rei imediatamente
+capturável sempre que existe uma alternativa segura. Ela ainda pode cometer
+erros estratégicos porque avalia apenas uma jogada à frente.
 
 Essa progressão é um recurso pedagógico combinado ao Q-learning, não um
 resultado produzido exclusivamente por ele. Ao final de cada partida, vitória,

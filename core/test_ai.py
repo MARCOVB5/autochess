@@ -107,6 +107,30 @@ class MiniChessAITest(unittest.TestCase):
         )
         self.assertEqual(king_capture, experienced_move)
 
+    def test_experienced_ai_answers_an_immediate_king_threat(self):
+        game = MiniChess(ignore_check_rule=True)
+        game.board = [
+            ['k', '.', '.', '.'],
+            ['.', 'r', '.', '.'],
+            ['.', '.', '.', '.'],
+            ['R', '.', '.', 'K'],
+        ]
+        game.king_positions = {'w': (3, 3), 'b': (0, 0)}
+        game.current_player = 'b'
+        ai = self.make_ai()
+        ai.games_played = 20
+        unsafe_move = ((1, 1), (1, 3))
+        state = game.get_state_representation()
+        ai.q_table[state] = {
+            ai.action_to_key(unsafe_move): 100.0,
+        }
+
+        self.assertTrue(game.is_check('b'))
+        move = ai.get_move(game, training=False, pedagogical=True)
+        game.make_move(move)
+        self.assertFalse(game.is_check('b'))
+        self.assertEqual(0.0, ai.get_exploration_rate())
+
     def test_terminal_reward_updates_entire_episode(self):
         ai = self.make_ai(alpha=1.0, gamma=0.5, epsilon=0.0)
         state_one = ("state-one", "b")

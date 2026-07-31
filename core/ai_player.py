@@ -72,9 +72,27 @@ class MiniChessAI:
             score = heuristic + (2.0 * q_value)
             scored_moves.append((score, q_value, heuristic, move))
 
+        if self.games_played >= 15:
+            safe_moves = [
+                item for item in scored_moves
+                if self._is_tactically_safe(game, item[3], player)
+            ]
+            if safe_moves:
+                scored_moves = safe_moves
+
         best_score = max(item[0] for item in scored_moves)
         tied = [item for item in scored_moves if abs(item[0] - best_score) < 1e-9]
         return self.random.choice(tied)[3]
+
+    @staticmethod
+    def _is_tactically_safe(game, move, player):
+        simulated = deepcopy(game)
+        if not simulated.make_move(move):
+            return False
+        captured = simulated.is_king_captured()
+        if captured is not None:
+            return captured != player
+        return not simulated.is_check(player)
 
     def _move_heuristic(self, game, move, player):
         simulated = deepcopy(game)
@@ -85,7 +103,10 @@ class MiniChessAI:
         if captured is not None:
             return 10.0 if captured != player else -10.0
 
-        return self.evaluate_board(simulated, player) / 100.0
+        score = self.evaluate_board(simulated, player) / 100.0
+        if simulated.is_check(player):
+            score -= 5.0
+        return score
 
     def learn(self, game, reward):
         self.games_played += 1
@@ -120,7 +141,7 @@ class MiniChessAI:
             return 1.0
         if self.games_played < 15:
             return 0.55
-        return 0.08
+        return 0.0
 
     def adjust_learning_parameters(self):
         self.epsilon = self.get_exploration_rate()
