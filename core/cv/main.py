@@ -1,10 +1,17 @@
 """
 Módulo principal do sistema de visão computacional para detecção de peças de xadrez
 """
+import os
+
+# Evita os avisos do Qt incluído no wheel do OpenCV em Linux e WSL.
+if os.name == "posix" and os.path.isdir("/usr/share/fonts/truetype/dejavu"):
+    os.environ.setdefault(
+        "QT_QPA_FONTDIR", "/usr/share/fonts/truetype/dejavu"
+    )
+
 import cv2
 import numpy as np
 import argparse
-import os
 import platform
 import json
 from cv.modules.board_processing import process_board_image, visualize_board_and_pieces
@@ -17,10 +24,8 @@ def show_with_matplotlib(image, title="Detecção de Tabuleiro e Peças"):
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
     
-    # Converter de BGR para RGB (OpenCV usa BGR, matplotlib usa RGB)
     rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
-    # Criar figura e mostrar imagem
     plt.figure(figsize=(12, 10))
     plt.imshow(rgb_image)
     plt.title(title)
@@ -42,18 +47,15 @@ def generate_chess_notation_matrix(squares, rows=4, cols=4):
         matriz: Matriz com notação das peças
         matriz_json: Representação JSON da matriz
     """
-    # Inicializar matriz com espaços vazios
     matriz = [['' for _ in range(cols)] for _ in range(rows)]
     
-    # Mapear cada quadrado para sua posição na matriz
     for square in squares:
         row, col = square['position']
         
         if square['contains_piece']:
             piece_color = square['piece_color']
-            piece_type = "P"  # Default para peão (Pawn)
+            piece_type = "?"  # Default para peça não identificada
             
-            # Verificar se temos informação do tipo da peça
             if 'piece_info' in square and 'type' in square['piece_info']:
                 piece_type_val = square['piece_info']['type']
                 if piece_type_val == 'pawn':
@@ -65,7 +67,6 @@ def generate_chess_notation_matrix(squares, rows=4, cols=4):
                 elif piece_type_val == 'king':
                     piece_type = "K"
             
-            # Prefixar com W para branco ou B para preto
             if piece_color == 'white':
                 notation = f"{piece_type}"
             elif piece_color == 'black':
@@ -75,10 +76,8 @@ def generate_chess_notation_matrix(squares, rows=4, cols=4):
                 
             matriz[row][col] = notation
         else:
-            # Quadrado vazio
             matriz[row][col] = "."
     
-    # Criar representação JSON das posições
     matriz_json = []
     for r in range(rows):
         row_data = []
@@ -102,26 +101,30 @@ def print_chess_matrix(matriz):
     rows = len(matriz)
     cols = len(matriz[0]) if matriz else 0
     
-    # Imprimir cabeçalho de colunas (A, B, C, D)
     print("  ", end="")
     for c in range(cols):
         print(f"  {chr(65+c)} ", end="")
     print("\n")
     
-    # Imprimir linhas com números
     for r in range(rows):
         print(f"{rows-r} ", end="")
         for c in range(cols):
             print(f"[{matriz[r][c]}]", end="")
         print(f" {rows-r}")  # Imprimir número da linha novamente
     
-    # Imprimir cabeçalho de colunas novamente
     print("\n  ", end="")
     for c in range(cols):
         print(f"  {chr(65+c)} ", end="")
     print()
 
-def detect_chess_position(image_path, visualize=False, save_all=False, save_matrix=False, output_dir="output"):
+def detect_chess_position(
+    image_path,
+    visualize=False,
+    save_all=False,
+    save_matrix=False,
+    output_dir="output",
+    print_before_visualization=False,
+):
     """
     Detecta a posição das peças no tabuleiro de xadrez a partir de uma imagem.
     
@@ -135,32 +138,27 @@ def detect_chess_position(image_path, visualize=False, save_all=False, save_matr
     Returns:
         dict: Dicionário contendo a matriz de peças, JSON correspondente e resultado da detecção
     """
-    # Verificar se o arquivo existe
     if not os.path.exists(image_path):
-        print(f"❌ Arquivo não encontrado: {image_path}")
+        print(f"Arquivo não encontrado: {image_path}")
         return None
         
     frame = cv2.imread(image_path)
     
     if frame is None:
-        print(f"❌ Não foi possível carregar a imagem: {image_path}")
+        print(f"Não foi possível carregar a imagem: {image_path}")
         return None
     
-    # Criar diretório de saída se não existir
     if (save_all or save_matrix) and not os.path.exists(output_dir):
         os.makedirs(output_dir)
     
-    # Processar a imagem
     warped_board, squares, corners = process_board_image(frame)
     
     if warped_board is None:
-        print("❌ Falha ao detectar o tabuleiro. Verifique a imagem e tente novamente.")
+        print("Falha ao detectar o tabuleiro. Verifique a imagem e tente novamente.")
         return {"matriz": None}
     
-    # Gerar matriz de notação de xadrez
     matriz, matriz_json = generate_chess_notation_matrix(squares)
     
-    # Salvar matriz em formato JSON se solicitado
     if save_matrix:
         base_filename = os.path.basename(image_path).split('.')[0]
         json_path = f"{output_dir}/{base_filename}_chess_matrix.json"
@@ -168,7 +166,6 @@ def detect_chess_position(image_path, visualize=False, save_all=False, save_matr
         with open(json_path, 'w') as json_file:
             json.dump(matriz_json, json_file, indent=2)
     
-    # Preparar resultado para retorno
     result = {
         "matriz": matriz,
         "matriz_json": matriz_json,
@@ -177,8 +174,18 @@ def detect_chess_position(image_path, visualize=False, save_all=False, save_matr
         "white_pieces": sum(1 for s in squares if s['piece_color'] == 'white'),
         "black_pieces": sum(1 for s in squares if s['piece_color'] == 'black'),
     }
+
+    if print_before_visualization:
+        print("\nMatriz detectada:")
+        for row in matriz:
+            print(" ".join(row))
+        print(
+            f"\nPeças: {result['pieces_count']} "
+            f"({result['white_pieces']} brancas, "
+            f"{result['black_pieces']} pretas)"
+        )
+        print("A janela permanecerá aberta; pressione Q ou ESC para fechar.")
     
-    # Gerar visualização anotada se solicitado ou se for exibir
     if visualize or save_all:
         board_visualization = visualize_board_and_pieces(frame, warped_board, squares, corners)
 
@@ -191,14 +198,17 @@ def detect_chess_position(image_path, visualize=False, save_all=False, save_matr
             result["detection_image_path"] = output_path
 
         if visualize:
-            # Redimensionar para exibição
-            scale_percent = 40  # Porcentagem do tamanho original
-            width = int(board_visualization.shape[1] * scale_percent / 100)
-            height = int(board_visualization.shape[0] * scale_percent / 100)
+            max_width, max_height = 1800, 900
+            scale = min(
+                1.0,
+                max_width / board_visualization.shape[1],
+                max_height / board_visualization.shape[0],
+            )
+            width = int(board_visualization.shape[1] * scale)
+            height = int(board_visualization.shape[0] * scale)
 
             board_viz_resized = cv2.resize(board_visualization, (width, height))
 
-            # Detectar automaticamente Linux ou usar opção explícita
             is_linux = platform.system() == 'Linux'
             use_matplotlib = is_linux
 
@@ -206,13 +216,28 @@ def detect_chess_position(image_path, visualize=False, save_all=False, save_matr
                 try:
                     show_with_matplotlib(board_viz_resized)
                 except ImportError:
-                    # Fallback para OpenCV
                     use_matplotlib = False
 
             if not use_matplotlib:
-                # Exibir com OpenCV
-                cv2.imshow("Detecção de Tabuleiro e Peças", board_viz_resized)
-                cv2.waitKey(0)
+                window_name = "Autochess CV - pressione Q ou ESC para fechar"
+                cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+                cv2.resizeWindow(
+                    window_name,
+                    board_viz_resized.shape[1],
+                    board_viz_resized.shape[0],
+                )
+                cv2.imshow(window_name, board_viz_resized)
+                while True:
+                    key = cv2.waitKey(50) & 0xFF
+                    if key in (ord("q"), 27):
+                        break
+                    try:
+                        if cv2.getWindowProperty(
+                            window_name, cv2.WND_PROP_VISIBLE
+                        ) < 1:
+                            break
+                    except cv2.error:
+                        break
                 cv2.destroyAllWindows()
 
     return result
@@ -222,33 +247,26 @@ def main():
     Função principal para uso via linha de comando.
     Analisa argumentos e chama a função de detecção.
     """
-    # Configurar o parser de argumentos
     parser = argparse.ArgumentParser(description='Análise de tabuleiro de xadrez 4x4')
-    parser.add_argument('--image', type=str, default="cv/assets/testing-chessboards/chessboard_allpieces.jpg",
+    parser.add_argument('--image', type=str, default="cv/assets/storage/testing-chessboards/chessboard_allpieces.jpg",
                         help='Caminho para a imagem do tabuleiro (padrão: chessboard_allpieces.png)')
     
-    # Opção para salvar automaticamente as imagens intermediárias
     parser.add_argument('--save-all', action='store_true',
                         help='Salvar todas as imagens intermediárias para análise')
     parser.add_argument('--output-dir', type=str, default="output",
                         help='Diretório para salvar as imagens (padrão: output)')
-    # Adicionar opção para usar matplotlib ao invés de OpenCV para visualização
     parser.add_argument('--use-matplotlib', action='store_true',
                         help='Usar matplotlib para visualização (recomendado para Linux)')
-    # Opção para salvar matriz de peças em JSON
     parser.add_argument('--save-matrix', action='store_true',
                         help='Salvar matriz de peças em formato JSON')
-    # Opção para não visualizar (útil para processamento em lote)
     parser.add_argument('--no-viz', action='store_true',
                         help='Não exibir visualização (útil para processamento em lote)')
     
     args = parser.parse_args()
 
-    # Carregar a imagem estática
     image_path = args.image
-    print(f"✅ Processando imagem: {image_path}")
+    print(f"Processando imagem: {image_path}")
     
-    # Chamar a função de detecção
     result = detect_chess_position(
         image_path=image_path,
         visualize=not args.no_viz,
@@ -257,7 +275,7 @@ def main():
         output_dir=args.output_dir
     )
     
-    if result is not None:
+    if result is not None and result.get("matriz") is not None:
         print("\n=== RESULTADO DA DETECÇÃO ===")
         print(f"Total de quadrados: {result['total_squares']}")
         print(f"Peças: {result['pieces_count']} ({result['white_pieces']} brancas, {result['black_pieces']} pretas)")
@@ -267,7 +285,7 @@ def main():
         
         if args.save_matrix:
             base_filename = os.path.basename(image_path).split('.')[0]
-            print(f"\n✅ Matriz de peças salva em: {args.output_dir}/{base_filename}_chess_matrix.json")
+            print(f"\nMatriz de peças salva em: {args.output_dir}/{base_filename}_chess_matrix.json")
     
     return result
 

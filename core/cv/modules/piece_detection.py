@@ -140,14 +140,14 @@ def piece_detection(square_img):
     inner_outer_diff = abs(inner_l - outer_l)
     disk_bg_diff = abs(disk_l - bg_l)
 
-    # Primary decision: inner (symbol) vs outer (disk background)
+    # O símbolo e o fundo do disco têm polaridades opostas.
     if inner_outer_diff >= 8:
         if inner_l < outer_l:
             piece_color = 'black'
         else:
             piece_color = 'white'
+    # Se o símbolo estiver pouco visível, compara o disco com a casa.
     elif disk_bg_diff >= 12:
-        # Fallback: disk color vs square background, piece is opposite
         if disk_l < bg_l:
             piece_color = 'white'
         else:

@@ -6,6 +6,98 @@ import numpy as np
 import os
 import pickle
 
+def _resolve_templates_dir(templates_dir='cv/assets/pure-assets'):
+    """Return an absolute path for the templates directory."""
+    if os.path.isabs(templates_dir):
+        return templates_dir
+    core_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return os.path.normpath(os.path.join(core_dir, templates_dir))
+
+
+def _identify_piece_contour(square_img, templates_dir, expected_color):
+    """Classify the printed symbol by its outline inside the circular piece."""
+    if expected_color not in ('white', 'black'):
+        return None, 0
+
+    gray = cv2.cvtColor(square_img, cv2.COLOR_BGR2GRAY)
+    side = min(gray.shape[:2])
+    circles = cv2.HoughCircles(
+        cv2.GaussianBlur(gray, (5, 5), 0),
+        cv2.HOUGH_GRADIENT,
+        dp=1,
+        minDist=side // 2,
+        param1=50,
+        param2=30,
+        minRadius=side // 7,
+        maxRadius=side // 2,
+    )
+    if circles is None:
+        return None, 0
+
+    cx, cy, radius = np.around(circles[0][0]).astype(int)
+    y_grid, x_grid = np.ogrid[:gray.shape[0], :gray.shape[1]]
+    inner = (
+        (x_grid - cx) ** 2 + (y_grid - cy) ** 2 < (0.78 * radius) ** 2
+    ).astype(np.uint8) * 255
+    values = gray[inner > 0]
+    if values.size == 0:
+        return None, 0
+
+    threshold = (np.percentile(values, 30) + np.percentile(values, 70)) / 2
+    if expected_color == 'white':
+        symbol = (gray > threshold).astype(np.uint8) * 255
+    else:
+        symbol = (gray < threshold).astype(np.uint8) * 255
+    symbol = cv2.bitwise_and(symbol, inner)
+    contours, _ = cv2.findContours(symbol, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return None, 0
+    observed = max(contours, key=cv2.contourArea)
+
+    templates_dir = _resolve_templates_dir(templates_dir)
+    cache_key = os.path.abspath(templates_dir)
+    if not hasattr(_identify_piece_contour, 'template_cache'):
+        _identify_piece_contour.template_cache = {}
+    template_contours = _identify_piece_contour.template_cache.get(cache_key)
+    if template_contours is None:
+        template_contours = {}
+        for piece_type in ('king', 'queen', 'rook', 'pawn'):
+            template = cv2.imread(
+                os.path.join(templates_dir, f'{piece_type}.png'),
+                cv2.IMREAD_GRAYSCALE,
+            )
+            if template is None:
+                continue
+            _, binary = cv2.threshold(
+                template, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
+            )
+            candidates, _ = cv2.findContours(
+                binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+            if candidates:
+                template_contours[piece_type] = max(
+                    candidates, key=cv2.contourArea
+                )
+        _identify_piece_contour.template_cache[cache_key] = template_contours
+
+    scores = sorted(
+        (
+            cv2.matchShapes(
+                observed, template_contour, cv2.CONTOURS_MATCH_I1, 0
+            ),
+            piece_type,
+        )
+        for piece_type, template_contour in template_contours.items()
+    )
+    if not scores:
+        return None, 0
+
+    best_distance, best_type = scores[0]
+    margin = scores[1][0] - best_distance if len(scores) > 1 else 1.0
+    if best_distance <= 0.20 and margin >= 0.05:
+        return best_type, 1.0 / (1.0 + best_distance)
+    return None, 0
+
 def keypoint_to_dict(kp):
     """Convert OpenCV KeyPoint to dictionary"""
     return {
@@ -31,33 +123,29 @@ def dict_to_keypoint(kp_dict):
 
 class ChessPieceRecognizer:
     """Class for recognizing chess pieces using SIFT features"""
-    
+
     def __init__(self, templates_dir='cv/assets/pure-assets'):
         """
         Initialize the chess piece recognizer
-        
+
         Args:
             templates_dir: Directory containing template images of chess pieces
         """
-        self.templates_dir = templates_dir
+        self.templates_dir = _resolve_templates_dir(templates_dir)
         self.templates = {}
         self.sift = cv2.SIFT_create()
-        
-        # instead of a fixed dict, we'll scan every .png in templates_dir
-        
-        # Load templates and extract SIFT features
+
+
         self._load_templates()
     
     def _load_templates(self):
         """Load template images and extract SIFT features"""
-        # Check if cached features exist
         cache_file = os.path.join(self.templates_dir, 'sift_features.pkl')
         
         if os.path.exists(cache_file):
             try:
                 with open(cache_file, 'rb') as f:
                     cached_data = pickle.load(f)
-                    # Convert cached data back to original format
                     self.templates = {}
                     for filename, data in cached_data.items():
                         self.templates[filename] = {
@@ -71,7 +159,6 @@ class ChessPieceRecognizer:
             except Exception as e:
                 print(f"Error loading cached features: {e}")
         
-        # Load *all* PNGs in templates_dir (and its 'augmented/' subfolder)
         all_templates = []
         for root, _, fnames in os.walk(self.templates_dir):
             for fname in fnames:
@@ -81,34 +168,28 @@ class ChessPieceRecognizer:
 
         for template_path in all_templates:
             filename = os.path.basename(template_path)
-            # infer piece_type from the filename prefix:
             piece_type = None
             for pt in ('king','queen','rook','pawn'):
                 if filename.lower().startswith(pt):
                     piece_type = pt
                     break
             if piece_type is None:
-                # skip any PNG that doesn't match our naming convention
                 continue
 
             if not os.path.exists(template_path):
                 print(f"Warning: Template {template_path} not found")
                 continue
                 
-            # Load template image
             template = cv2.imread(template_path)
             if template is None:
                 print(f"Warning: Failed to load {template_path}")
                 continue
             
-            # Convert to grayscale
             gray_template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
             
-            # Detect SIFT keypoints and descriptors
             keypoints, descriptors = self.sift.detectAndCompute(gray_template, None)
             
             if keypoints and descriptors is not None:
-                # Store template info (color-agnostic)
                 self.templates[filename] = {
                     'keypoints': keypoints,
                     'descriptors': descriptors,
@@ -117,10 +198,8 @@ class ChessPieceRecognizer:
                 }
                 print(f"Loaded template: {filename} ({len(keypoints)} keypoints)")
         
-        # Save features to cache
         if self.templates:
             try:
-                # Convert keypoints to pickleable format
                 cache_data = {}
                 for filename, data in self.templates.items():
                     cache_data[filename] = {
@@ -151,22 +230,18 @@ class ChessPieceRecognizer:
         if not self.templates:
             return None
         
-        # Convert to grayscale for SIFT
         if len(square_img.shape) == 3:
             gray_img = cv2.cvtColor(square_img, cv2.COLOR_BGR2GRAY)
         else:
             gray_img = square_img
         
-        # Create SIFT detector
         sift = self.sift
         
-        # Detect keypoints and descriptors
         keypoints, descriptors = sift.detectAndCompute(gray_img, None)
         
         if keypoints is None or len(keypoints) == 0 or descriptors is None:
             return None
         
-        # Create FLANN matcher
         FLANN_INDEX_KDTREE = 1
         index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
         search_params = dict(checks=50)
@@ -175,28 +250,21 @@ class ChessPieceRecognizer:
         best_match = None
         best_score = 0
         
-        # Use all templates since we're color-agnostic
         filtered_templates = self.templates
         
-        # Match against each template
         for filename, template in filtered_templates.items():
-            # Skip if descriptor shapes don't match
             if descriptors.shape[1] != template['descriptors'].shape[1]:
                 continue
             
-            # Match descriptors using FLANN
             matches = flann.knnMatch(template['descriptors'], descriptors, k=2)
             
-            # Apply ratio test as per Lowe's paper
             good_matches = []
             for m, n in matches:
                 if m.distance < 0.7 * n.distance:
                     good_matches.append(m)
             
-            # Calculate score (normalized by template keypoints)
             score = len(good_matches) / len(template['keypoints']) if template['keypoints'] else 0
             
-            # Update best match if score is better
             if score > best_score and score > 0.15:  # Threshold for minimum score
                 best_score = score
                 best_match = {
@@ -218,6 +286,7 @@ def _identify_piece_template(square_img, templates_dir='cv/assets/pure-assets', 
     Returns:
         tuple: (piece_type, confidence) or (None, 0)
     """
+    templates_dir = _resolve_templates_dir(templates_dir)
     piece_names = ['king', 'queen', 'rook', 'pawn']
     templates = {}
     for name in piece_names:
@@ -236,8 +305,6 @@ def _identify_piece_template(square_img, templates_dir='cv/assets/pure-assets', 
     else:
         gray = square_img
 
-    # White pieces have a light symbol on a dark disk. The templates are dark
-    # silhouettes on a light background, so invert white-piece squares.
     if expected_color == 'white':
         gray = cv2.bitwise_not(gray)
 
@@ -276,14 +343,26 @@ def identify_piece_sift(square_img, templates_dir='cv/assets/pure-assets', expec
     Returns:
         tuple: (piece_type, sift_color, confidence)
     """
-    # Create a singleton instance of ChessPieceRecognizer
+    # A silhueta é o caminho principal para as peças impressas deste projeto.
+    contour_type, contour_score = _identify_piece_contour(
+        square_img, templates_dir, expected_color
+    )
+    if contour_type:
+        return contour_type, expected_color, contour_score
+
+    # Template direto evita dezenas de comparações SIFT quando o match é claro.
+    template_type, template_score = _identify_piece_template(
+        square_img, templates_dir=templates_dir, expected_color=expected_color
+    )
+    if template_type and template_score >= 0.62:
+        return template_type, expected_color, template_score
+
+    # SIFT fica restrito a casos de blur, reflexo ou oclusão.
     if not hasattr(identify_piece_sift, 'recognizer'):
         identify_piece_sift.recognizer = ChessPieceRecognizer(templates_dir)
 
-    # SIFT path
     result = identify_piece_sift.recognizer.identify_piece(square_img, expected_color)
 
-    # If white piece is expected or no good match was found, try with inverted image
     if (expected_color == 'white' or (result is None or result['score'] < 0.25)) and len(square_img.shape) == 3:
         inverted_img = cv2.bitwise_not(square_img)
         inverted_result = identify_piece_sift.recognizer.identify_piece(inverted_img, expected_color)
@@ -293,12 +372,6 @@ def identify_piece_sift(square_img, templates_dir='cv/assets/pure-assets', expec
     sift_type = result['type'] if result else None
     sift_score = result['score'] if result else 0
 
-    # Template matching path
-    template_type, template_score = _identify_piece_template(
-        square_img, templates_dir=templates_dir, expected_color=expected_color
-    )
-
-    # Return the method with the higher confidence
     if template_type and template_score >= sift_score:
         return template_type, expected_color, template_score
 
@@ -320,24 +393,20 @@ def visualize_sift_match(square_img, templates_dir='cv/assets/pure-assets', expe
     Returns:
         Image with SIFT matches visualization
     """
-    # Create a singleton instance of ChessPieceRecognizer
     if not hasattr(visualize_sift_match, 'recognizer'):
         visualize_sift_match.recognizer = ChessPieceRecognizer(templates_dir)
     
-    # Convert to grayscale for SIFT
     if len(square_img.shape) == 3:
         gray_img = cv2.cvtColor(square_img, cv2.COLOR_BGR2GRAY)
     else:
         gray_img = square_img
     
-    # Detect keypoints and descriptors
     sift = visualize_sift_match.recognizer.sift
     keypoints, descriptors = sift.detectAndCompute(gray_img, None)
     
     if keypoints is None or len(keypoints) == 0 or descriptors is None:
         return square_img
     
-    # Create FLANN matcher
     FLANN_INDEX_KDTREE = 1
     index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
     search_params = dict(checks=50)
@@ -345,7 +414,6 @@ def visualize_sift_match(square_img, templates_dir='cv/assets/pure-assets', expe
     
     recognizer = visualize_sift_match.recognizer
     
-    # Use all templates since we're color-agnostic
     filtered_templates = recognizer.templates
     
     best_match = None
@@ -353,25 +421,19 @@ def visualize_sift_match(square_img, templates_dir='cv/assets/pure-assets', expe
     best_template = None
     best_good_matches = []
     
-    # Match against each template
     for filename, template in filtered_templates.items():
-        # Skip if descriptor shapes don't match
         if descriptors.shape[1] != template['descriptors'].shape[1]:
             continue
         
-        # Match descriptors using FLANN
         matches = flann.knnMatch(template['descriptors'], descriptors, k=2)
         
-        # Apply ratio test as per Lowe's paper
         good_matches = []
         for m, n in matches:
             if m.distance < 0.7 * n.distance:
                 good_matches.append(m)
         
-        # Calculate score (normalized by template keypoints)
         score = len(good_matches) / len(template['keypoints']) if template['keypoints'] else 0
         
-        # Update best match if score is better
         if score > best_score and score > 0.15:  # Threshold for minimum score
             best_score = score
             best_match = {
@@ -383,7 +445,6 @@ def visualize_sift_match(square_img, templates_dir='cv/assets/pure-assets', expe
             best_good_matches = good_matches
     
     if best_match and best_template is not None:
-        # Draw matches
         img_matches = cv2.drawMatches(
             best_template, recognizer.templates[best_match['filename']]['keypoints'],
             gray_img, keypoints,
@@ -391,7 +452,6 @@ def visualize_sift_match(square_img, templates_dir='cv/assets/pure-assets', expe
             flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
         )
         
-        # Add info text
         cv2.putText(
             img_matches, 
             f"{best_match['type']}: {best_score:.2f}", 
@@ -400,7 +460,6 @@ def visualize_sift_match(square_img, templates_dir='cv/assets/pure-assets', expe
         
         return img_matches
     
-    # Draw keypoints if no match
     img_keypoints = cv2.drawKeypoints(
         gray_img, keypoints, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS
     )
