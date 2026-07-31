@@ -1,0 +1,177 @@
+# AutoChess
+
+AutoChess é um protótipo de tabuleiro de MiniChess 4×4 capaz de jogar fisicamente
+contra uma pessoa. O sistema combina visão computacional para reconhecer a jogada
+humana, uma IA baseada em Q-learning para escolher a resposta e uma estrutura CNC
+CoreXY com eletroímã para movimentar as peças.
+
+![Diagrama geral do AutoChess](defesa/artigo_final/imagens/diagrama.jpg)
+
+## Como funciona
+
+O fluxo de uma partida é:
+
+1. a pessoa movimenta uma peça branca no tabuleiro;
+2. a câmera captura uma imagem do estado atual;
+3. o módulo de visão computacional identifica as peças e deduz a jogada;
+4. o motor de MiniChess valida o movimento;
+5. a IA escolhe uma jogada para as peças pretas;
+6. o controlador converte a jogada em comandos para a CNC, que move a peça.
+
+O jogo utiliza um tabuleiro 4×4 com peões, torres, rainhas e reis. As peças brancas
+são controladas pela pessoa e as pretas pela IA.
+
+## Componentes
+
+- **Motor de jogo:** regras, validação de jogadas, xeque, xeque-mate e empate.
+- **Inteligência artificial:** agente de Q-learning tabular com avaliação heurística
+  de uma jogada.
+- **Visão computacional:** OpenCV para localizar o tabuleiro e classificar as peças.
+- **Controle físico:** comunicação serial com Arduino e envio de comandos G-code.
+- **Simuladores:** interfaces gráficas em Pygame para partidas locais, com ou sem IA.
+- **Estrutura mecânica:** modelos do tabuleiro, peças e componentes para fabricação.
+
+## Estrutura do repositório
+
+```text
+.
+├── core/                         # Aplicação integrada e módulos principais
+│   ├── main.py                   # Fluxo câmera → IA → CNC
+│   ├── minichess.py              # Regras do MiniChess 4×4
+│   ├── ai_player.py              # Agente de Q-learning
+│   ├── train_ai.py               # Treinamento da IA por simulação
+│   ├── cv/                       # Visão computacional e imagens de treino/teste
+│   ├── models/                   # Modelo persistido da IA
+│   └── serial_cnc/               # Controlador serial e firmware do Arduino
+├── minichess_simulator/
+│   ├── minichess/                # Simulador pessoa contra pessoa
+│   └── minichess_ia/             # Simulador pessoa contra IA
+├── modelos/                      # Arquivos 3D e modelos do tabuleiro
+├── proposta/                     # Propostas e documentação do projeto
+└── defesa/                       # Artigo, apresentação e vídeo
+```
+
+## Requisitos
+
+Para executar o software:
+
+- Python 3;
+- uma webcam compatível com OpenCV;
+- Arduino conectado por USB e programado com o firmware do projeto;
+- mecanismo CNC/CoreXY com servo e eletroímã.
+
+Os simuladores gráficos não precisam do hardware físico.
+
+## Instalação
+
+Clone o repositório e crie um ambiente virtual:
+
+```bash
+git clone <URL-DO-REPOSITORIO>
+cd autochess
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r core/requirements.txt
+```
+
+No Windows, ative o ambiente com:
+
+```powershell
+.venv\Scripts\activate
+```
+
+## Executando o sistema completo
+
+Conecte a câmera e o Arduino, posicione o mecanismo na origem configurada e execute
+a aplicação a partir da pasta `core`:
+
+```bash
+cd core
+python main.py
+```
+
+A aplicação procura automaticamente a CNC nas portas seriais disponíveis. A webcam
+externa está configurada como dispositivo `1` em `core/main.py`; altere
+`cv2.VideoCapture(1)` caso ela seja enumerada de outra forma no seu computador.
+
+Durante a partida, use:
+
+- `0` para capturar e processar a jogada;
+- `1` para iniciar uma nova partida;
+- `2` para apagar o aprendizado salvo e reiniciar a IA;
+- `q` para encerrar.
+
+> **Atenção:** antes do primeiro movimento, confira a origem, os limites e o sentido
+> dos eixos da CNC. As coordenadas físicas das casas estão definidas em
+> `core/serial_cnc/cnc_controller.py`.
+
+## Executando os simuladores
+
+### Pessoa contra pessoa
+
+```bash
+cd minichess_simulator/minichess
+python -m pip install -r ../../core/requirements.txt
+python main.py
+```
+
+### Pessoa contra IA
+
+```bash
+cd minichess_simulator/minichess_ia
+python -m pip install -r requirements.txt
+python main.py
+```
+
+Nas interfaces, selecione uma peça com o mouse e clique em uma das casas destacadas
+para realizar a jogada.
+
+## Treinando a IA
+
+O agente pode ser treinado sem câmera ou CNC, enfrentando um oponente aleatório:
+
+```bash
+cd core
+python train_ai.py --games 1000 --seed 0
+```
+
+Por padrão, o modelo é salvo em `core/models/minichess_ai_model.pkl`. Use
+`--model caminho/do/modelo.pkl` para escolher outro arquivo e `--max-plies` para
+limitar a duração de cada partida simulada.
+
+## Testes
+
+Os testes do motor e da IA usam `unittest`:
+
+```bash
+cd core
+python -m unittest test_ai.py
+```
+
+Também há scripts experimentais de câmera, visão e CNC em `core/test_*.py`,
+`core/cv/` e `core/serial_cnc/`. Alguns deles dependem do hardware conectado e da
+calibração do protótipo.
+
+## Firmware
+
+Os sketches usados pelo controlador estão em:
+
+- `core/serial_cnc/arduino-cli/firmware_hibrido/firmware_hibrido.ino`;
+- `core/serial_cnc/arduino-cli/grblUpload/grblUpload.ino`.
+
+Grave no Arduino o firmware adequado à montagem antes de iniciar a aplicação
+integrada. A comunicação serial utiliza `115200` baud por padrão.
+
+## Documentação e materiais
+
+- Artigo final: `defesa/artigo_final/output/main.pdf`;
+- apresentação: `defesa/apresentacao/main.pdf`;
+- vídeo do projeto: `defesa/video/video_autochess.mp4`;
+- modelos para fabricação: `modelos/`.
+
+## Estado do projeto
+
+Este repositório contém um protótipo acadêmico. A precisão da visão computacional e
+as coordenadas da CNC dependem da iluminação, do posicionamento da câmera e da
+calibração mecânica de cada montagem.
