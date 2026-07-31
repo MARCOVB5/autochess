@@ -20,6 +20,7 @@ class OptimizedChessVision:
         self.last_board_state = None
         self.board_template = None
         self.calibration_data = None
+        self.last_visualization = None
         self._initialize_vision_resources()
     
     def _initialize_vision_resources(self):
@@ -39,7 +40,11 @@ class OptimizedChessVision:
         if os.path.exists(templates_dir):
             pass
     
-    def detect_chess_position_optimized(self, image_path):
+    def detect_chess_position_optimized(
+        self,
+        image_path,
+        include_visualization=False,
+    ):
         """
         Versão otimizada da detecção que reutiliza recursos.
         """
@@ -54,10 +59,16 @@ class OptimizedChessVision:
             return None
         
         try:
-            result = cv.detect_chess_position(image_path, visualize=False, save_all=False)
+            result = cv.detect_chess_position(
+                image_path,
+                visualize=False,
+                save_all=False,
+                include_visualization=include_visualization,
+            )
             
             if result and "matriz" in result:
                 self.last_board_state = result["matriz"]
+                self.last_visualization = result.get("visualization")
                 return result
             else:
                 return None
@@ -88,7 +99,7 @@ class OptimizedGameController:
         self.vision_system = OptimizedChessVision()
         self.game_state_cache = {}
         
-    def initialize_game_resources(self):
+    def initialize_game_resources(self, use_cnc=True, use_camera=True):
         """Inicializa todos os recursos uma única vez."""
         try:
             os.makedirs('models', exist_ok=True)
@@ -96,9 +107,11 @@ class OptimizedGameController:
             
             self.ai_player = MiniChessAI()
             
-            self.controller = cnc_controller.CNCArduinoController()
+            if use_cnc:
+                self.controller = cnc_controller.CNCArduinoController()
             
-            self.camera = self._initialize_camera()
+            if use_camera:
+                self.camera = self._initialize_camera()
             
             self.chess_game = MiniChess(ignore_check_rule=True)
             
@@ -127,7 +140,7 @@ class OptimizedGameController:
         print("Câmera inicializada com sucesso!")
         return cap
     
-    def capture_and_detect_move_optimized(self):
+    def capture_and_detect_move_optimized(self, include_visualization=False):
         """
         Versão otimizada da captura e detecção de movimento.
         """
@@ -154,7 +167,10 @@ class OptimizedGameController:
         cv2.imwrite(image_path, frame)
         print("Foto do tabuleiro capturada e salva!")
 
-        result = self.vision_system.detect_chess_position_optimized(image_path)
+        result = self.vision_system.detect_chess_position_optimized(
+            image_path,
+            include_visualization=include_visualization,
+        )
         
         if result is None or "matriz" not in result or result["matriz"] is None:
             print("Falha ao detectar o tabuleiro. Verifique a imagem e tente novamente.")
@@ -251,15 +267,18 @@ class OptimizedGameController:
         
         return movimento
     
-    def cleanup_resources(self):
+    def cleanup_resources(self, save_ai_model=True):
         """Limpa os recursos utilizados."""
         if self.camera is not None and self.camera.isOpened():
             self.camera.release()
             print("Câmera liberada.")
         
-        if self.ai_player:
+        if self.ai_player and save_ai_model:
             self.ai_player.save_model()
             print("Modelo da IA salvo.")
+
+        if self.controller:
+            self.controller.close()
 
 def print_board(board):
     """Imprime o tabuleiro no terminal."""

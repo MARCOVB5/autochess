@@ -118,10 +118,10 @@ class CNCArduinoController:
         if port is None:
             port = find_cnc_port(baudrate=baudrate, timeout=timeout)
             if port is None:
-                print("Falha ao detectar a porta do Arduino/CNC.")
-                print("   Dica: conecte o Arduino e tente novamente,")
-                print("   ou passe a porta manualmente, ex.: CNCArduinoController('COM3')")
-                sys.exit(1)
+                raise RuntimeError(
+                    "Falha ao detectar a porta do Arduino/CNC. "
+                    "Conecte o Arduino ou configure SERIAL_PORT."
+                )
 
         self.positions = dict(hardware.CNC_POSITIONS)
         
@@ -136,8 +136,7 @@ class CNCArduinoController:
             time.sleep(hardware.SERIAL_STARTUP_DELAY)
             self.initialize_cnc()
         except serial.SerialException as e:
-            print(f"Erro ao conectar à porta {port}: {e}")
-            sys.exit(1)
+            raise RuntimeError(f"Erro ao conectar à porta {port}: {e}") from e
     
     def initialize_cnc(self):
         """Inicializa a CNC enviando comandos G-code iniciais"""

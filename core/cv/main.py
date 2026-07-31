@@ -124,6 +124,7 @@ def detect_chess_position(
     save_matrix=False,
     output_dir="output",
     print_before_visualization=False,
+    include_visualization=False,
 ):
     """
     Detecta a posição das peças no tabuleiro de xadrez a partir de uma imagem.
@@ -134,6 +135,7 @@ def detect_chess_position(
         save_all (bool): Se True, salva todas as imagens intermediárias
         save_matrix (bool): Se True, salva a matriz de peças em JSON
         output_dir (str): Diretório para salvar os resultados
+        include_visualization (bool): Se True, inclui a imagem anotada no retorno
         
     Returns:
         dict: Dicionário contendo a matriz de peças, JSON correspondente e resultado da detecção
@@ -186,8 +188,10 @@ def detect_chess_position(
         )
         print("A janela permanecerá aberta; pressione Q ou ESC para fechar.")
     
-    if visualize or save_all:
+    if visualize or save_all or include_visualization:
         board_visualization = visualize_board_and_pieces(frame, warped_board, squares, corners)
+        if include_visualization:
+            result["visualization"] = board_visualization
 
         if save_all:
             if not os.path.exists(output_dir):

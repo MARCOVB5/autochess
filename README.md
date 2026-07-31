@@ -37,6 +37,8 @@ são controladas pela pessoa e as pretas pela IA.
 .
 ├── core/                         # Aplicação integrada e módulos principais
 │   ├── main.py                   # Fluxo câmera → IA → CNC
+│   ├── unified_app.py            # Painel visual integrado do robô
+│   ├── button_reader.py          # Eventos dos botões físicos
 │   ├── hardware_config.py        # Câmera, serial, comandos e coordenadas físicas
 │   ├── minichess.py              # Regras do MiniChess 4×4
 │   ├── ai_player.py              # Agente de Q-learning
@@ -105,6 +107,36 @@ Durante a partida, use:
 - `2` para apagar o aprendizado salvo e reiniciar a IA;
 - `q` para encerrar.
 
+### Painel unificado
+
+O painel reúne o tabuleiro lógico, a última imagem processada pelo CV, a IA, a
+CNC e os botões físicos:
+
+```bash
+cd core
+python unified_app.py
+```
+
+Configure `SERIAL_PORT` para a CNC e `BUTTONS_SERIAL_PORT` para o Arduino dos
+botões em `hardware_config.py`. As portas devem ser diferentes. Os botões enviam
+`BUTTON_0`, `BUTTON_1` e `BUTTON_2`; mouse e teclado executam os mesmos comandos.
+
+Para testar toda a interface e jogar contra a IA sem hardware:
+
+```bash
+python unified_app.py --simulate
+```
+
+Também é possível abrir uma imagem no painel de CV durante a simulação:
+
+```bash
+python unified_app.py --simulate \
+  --cv-image cv/assets/storage/testing-chessboards/chessboard_allpieces.jpg
+```
+
+Use `--no-camera`, `--no-cnc` ou `--no-buttons` para testar apenas partes da
+montagem.
+
 > **Atenção:** antes do primeiro movimento, confira a origem, os limites e o sentido
 > dos eixos da CNC. Revise `core/hardware_config.py` sempre que mudar a montagem,
 > a câmera ou o firmware.
@@ -145,11 +177,11 @@ limitar a duração de cada partida simulada.
 
 ## Testes
 
-Os testes do motor e da IA usam `unittest`:
+Os testes do motor, da IA e do painel usam `unittest`:
 
 ```bash
 cd core
-python -m unittest test_ai.py
+python -m unittest test_ai.py test_unified_app.py
 ```
 
 Também há scripts experimentais de câmera, visão e CNC em `core/test_*.py`,
