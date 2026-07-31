@@ -1,4 +1,3 @@
-import numpy as np
 from copy import deepcopy
 
 class MiniChess:
@@ -14,7 +13,7 @@ class MiniChess:
         '.' representa uma casa vazia
         
         Args:
-            ignore_check_rule: Se True, permite movimentos que deixam o próprio rei em xeque (usado para IA iniciante)
+            ignore_check_rule: Se True, permite que ambos os jogadores deixem o próprio rei em xeque
         """
         # Inicializa um tabuleiro 4x4
         # Notação: maiúsculas para peças brancas, minúsculas para pretas
@@ -149,8 +148,7 @@ class MiniChess:
         
         # Se estivermos ignorando a regra do xeque para a IA (peças pretas) ou se forem peças brancas (jogador humano)
         # retornamos todos os movimentos básicos
-        piece_color = self.get_piece_color(self.board[position[0]][position[1]])
-        if (self.ignore_check_rule and piece_color == 'b') or piece_color == 'w':
+        if self.ignore_check_rule:
             return valid_moves
         
         # Filtra movimentos que deixariam o rei em xeque
@@ -272,6 +270,9 @@ class MiniChess:
         """
         Verifica se o jogador atual está em xeque-mate
         """
+        if self.ignore_check_rule:
+            return False
+
         # Se o jogador não está em xeque, não é xeque-mate
         if not self.is_check(self.current_player):
             return False
@@ -325,7 +326,7 @@ class MiniChess:
         Verifica se o jogo está empatado (sem movimentos legais, mas não em xeque)
         """
         # Se estiver em xeque, não é empate
-        if self.is_check(self.current_player):
+        if not self.ignore_check_rule and self.is_check(self.current_player):
             return False
         
         # Verifica se há algum movimento legal
@@ -375,4 +376,4 @@ class MiniChess:
         board_str = ''.join(''.join(row) for row in self.board)
         
         # Adiciona o jogador atual
-        return (board_str, self.current_player) 
+        return (board_str, self.current_player)

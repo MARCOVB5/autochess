@@ -1,4 +1,3 @@
-import numpy as np
 from copy import deepcopy
 
 class MiniChess:
@@ -14,7 +13,7 @@ class MiniChess:
         '.' representa uma casa vazia
         
         Args:
-            ignore_check_rule: Se True, permite movimentos que deixam o próprio rei em xeque (usado para IA iniciante)
+            ignore_check_rule: Se True, permite que ambos os jogadores deixem o próprio rei em xeque
         """
         self.board = [
             ['r', 'q', 'k', 'r'], 
@@ -128,8 +127,7 @@ class MiniChess:
         """
         valid_moves = self.get_basic_moves(position)
         
-        piece_color = self.get_piece_color(self.board[position[0]][position[1]])
-        if (self.ignore_check_rule and piece_color == 'b') or piece_color == 'w':
+        if self.ignore_check_rule:
             return valid_moves
         
         filtered_moves = []
@@ -232,6 +230,9 @@ class MiniChess:
         """
         Verifica se o jogador atual está em xeque-mate
         """
+        if self.ignore_check_rule:
+            return False
+
         if not self.is_check(self.current_player):
             return False
         
@@ -279,7 +280,7 @@ class MiniChess:
         """
         Verifica se o jogo está empatado (sem movimentos legais, mas não em xeque)
         """
-        if self.is_check(self.current_player):
+        if not self.ignore_check_rule and self.is_check(self.current_player):
             return False
         
         for row in range(4):

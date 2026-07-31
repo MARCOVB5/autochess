@@ -213,11 +213,14 @@ def display_current_player(current_player):
     screen.blit(text, (20, HEIGHT - 30))
 
 def display_ai_strength(ai_player):
-    """Mostra o nível de força atual da IA."""
-    strength_desc = ai_player.get_strength_description()
-    
+    """Mostra quantas partidas a IA já jogou."""
     font = pygame.font.SysFont(None, 24)
-    text = font.render(f"IA: {strength_desc}", True, BLACK)
+    game_label = "partida jogada" if ai_player.games_played == 1 else "partidas jogadas"
+    text = font.render(
+        f"IA: {ai_player.games_played} {game_label}",
+        True,
+        BLACK,
+    )
     text_rect = text.get_rect(topleft=(20, 20))
     screen.blit(text, text_rect)
 
@@ -285,10 +288,7 @@ def main():
     global ai_player
     ai_player = MiniChessAI()
     
-    # Inicialização do jogo - permite que a IA ignore a regra de xeque nas 5 primeiras partidas
-    # para demonstração educacional da evolução da IA
-    ignore_check_rule = ai_player.games_played < 5
-    chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
+    chess_game = MiniChess(ignore_check_rule=True)
     
     # Estado do jogo
     selected_square = None
@@ -335,7 +335,6 @@ def main():
                 reset_button_rect = draw_reset_button()
                 if reset_button_rect.collidepoint(mouse_pos):
                     ai_player.reset_model()
-                    # Reinicia o jogo com a flag de ignorar xeque ativada para IA iniciante
                     chess_game = MiniChess(ignore_check_rule=True)
                     selected_square = None
                     valid_moves = []
@@ -345,9 +344,7 @@ def main():
                 # Botão novo jogo
                 new_game_button_rect = draw_new_game_button()
                 if new_game_button_rect.collidepoint(mouse_pos):
-                    # Mantém a configuração atual da IA, mas reinicia o tabuleiro
-                    ignore_check_rule = ai_player.games_played < 5
-                    chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
+                    chess_game = MiniChess(ignore_check_rule=True)
                     selected_square = None
                     valid_moves = []
                     ai_move_attempts = 0
@@ -442,10 +439,7 @@ def main():
         if game_over:
             # Espera por clique para reiniciar
             if show_game_over(game_over_message):
-                # Atualiza a flag ignore_check_rule com base no número de jogos
-                ignore_check_rule = ai_player.games_played < 5
-                # Reinicia o jogo
-                chess_game = MiniChess(ignore_check_rule=ignore_check_rule)
+                chess_game = MiniChess(ignore_check_rule=True)
                 game_over = False
                 selected_square = None
                 valid_moves = []
@@ -455,7 +449,7 @@ def main():
         if not game_over and chess_game.current_player != human_player and not ai_thinking:
             # Proteção contra travamentos
             if ai_move_attempts >= max_ai_move_attempts:
-                chess_game = MiniChess()
+                chess_game = MiniChess(ignore_check_rule=True)
                 ai_move_attempts = 0
                 continue
             
@@ -516,4 +510,4 @@ def main():
     sys.exit()
 
 if __name__ == "__main__":
-    main() 
+    main()

@@ -279,9 +279,7 @@ def display_current_player(current_player):
     print(f"Jogador atual: {player_name}")
 
 def display_ai_strength(ai_player):
-    """Exibe a força atual da IA."""
-    strength_desc = ai_player.get_strength_description()
-    print(f"Nível da IA: {strength_desc}")
+    """Exibe quantas partidas a IA já jogou."""
     print(f"Jogos realizados: {ai_player.games_played}")
 
 def is_valid_move_format(move_str):
